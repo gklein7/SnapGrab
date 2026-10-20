@@ -1,0 +1,5 @@
+yt-dlp>=2024.8.0
+imageio-ffmpeg>=0.5.1
+pystray>=0.19.5
+Pillow>=10.0.0
+pyperclip>=1.8.2

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "snapgrab"
+version = "1.0.0"
+description = "Zero-friction background video and audio downloader for Windows powered by yt-dlp"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "SnapGrab Contributors" }
+]
+keywords = ["yt-dlp", "downloader", "video", "audio", "youtube", "instagram", "twitter", "x", "tiktok", "windows-tray"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: Microsoft :: Windows",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Utilities"
+]
+dependencies = [
+    "yt-dlp>=2024.8.0",
+    "imageio-ffmpeg>=0.5.1",
+    "pystray>=0.19.5",
+    "Pillow>=10.0.0",
+    "pyperclip>=1.8.2"
+]
+
+[project.scripts]
+snapgrab = "main:main"
