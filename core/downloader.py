@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 import yt_dlp
-from config import DEFAULT_DOWNLOAD_DIR, COOKIE_BROWSER
+from config import DEFAULT_DOWNLOAD_DIR, COOKIE_BROWSER, DEFAULT_VIDEO_QUALITY
 from core.ffmpeg_resolver import get_ffmpeg_path
 
 class MediaDownloader:
@@ -42,11 +42,12 @@ class MediaDownloader:
                 'error': str(e)
             }
 
-    def download(self, url, media_type="video", progress_callback=None, use_cookies=False, browser_name=COOKIE_BROWSER):
+    def download(self, url, media_type="video", quality="best", progress_callback=None, use_cookies=False, browser_name=COOKIE_BROWSER):
         """
         Baixa o vídeo ou áudio do link fornecido.
         :param url: URL do YouTube, Instagram, X, TikTok, etc.
-        :param media_type: 'video' (MP4 1080p/Max) ou 'audio' (MP3 320kbps)
+        :param media_type: 'video' ou 'audio'
+        :param quality: Resolução desejada ('best', '1080p', '720p', '480p')
         :param progress_callback: Função chamada com dict de status (percent, speed, eta, status, filename)
         :param use_cookies: Se deve tentar extrair cookies do navegador
         :param browser_name: Navegador para cookies ('chrome', 'edge', etc.)
@@ -106,8 +107,14 @@ class MediaDownloader:
                 }]
             })
         else: # video
+            if not quality or quality == 'best':
+                fmt = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'
+            else:
+                h = quality.lower().replace('p', '')
+                fmt = f'bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={h}]+bestaudio/best[height<={h}]/best'
+
             ydl_opts.update({
-                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
+                'format': fmt,
                 'merge_output_format': 'mp4'
             })
 
@@ -125,16 +132,22 @@ class MediaDownloader:
                         'status': 'completed',
                         'percent': 100,
                         'filename': target_filename,
-                        'title': info.get('title', 'Vídeo')
+                        'title': info.get('title', 'Vídeo'),
+                        'quality': quality if media_type == 'video' else 'mp3'
                     })
-                return {'success': True, 'filename': target_filename, 'title': info.get('title')}
+                return {
+                    'success': True,
+                    'filename': target_filename,
+                    'title': info.get('title'),
+                    'quality': quality if media_type == 'video' else 'mp3'
+                }
 
         except Exception as e:
             err_msg = str(e)
             # Se falhou por autenticação/restrição (comum no Instagram) e não tentou cookies ainda, tenta com cookies
             if not use_cookies and browser_name and any(k in err_msg.lower() for k in ['login', 'sign in', 'authenticate', 'rate limit', 'private']):
                 print(f"Tentando novamente com cookies do {browser_name}...")
-                return self.download(url, media_type, progress_callback, use_cookies=True, browser_name=browser_name)
+                return self.download(url, media_type, quality, progress_callback, use_cookies=True, browser_name=browser_name)
 
             if progress_callback:
                 progress_callback({
@@ -144,6 +157,5 @@ class MediaDownloader:
             return {'success': False, 'error': err_msg}
 
 if __name__ == "__main__":
-    # Teste rápido
     downloader = MediaDownloader()
     print("Módulo MediaDownloader pronto.")

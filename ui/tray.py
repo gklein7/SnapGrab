@@ -3,7 +3,7 @@ import subprocess
 from PIL import Image, ImageDraw
 import pystray
 from pystray import MenuItem as item
-from config import DEFAULT_DOWNLOAD_DIR
+from config import DEFAULT_DOWNLOAD_DIR, AVAILABLE_QUALITIES, QUALITY_LABELS
 
 def create_tray_icon_image(active=True):
     """Cria dinamicamente uma imagem moderna para o ícone de bandeja."""
@@ -27,22 +27,49 @@ def create_tray_icon_image(active=True):
     return image
 
 class SystemTrayApp:
-    def __init__(self, on_toggle_pause, on_download_clipboard, on_quit):
+    def __init__(self, on_toggle_pause, on_download_clipboard, on_change_quality, on_quit, initial_quality="best"):
         self.on_toggle_pause = on_toggle_pause
         self.on_download_clipboard = on_download_clipboard
+        self.on_change_quality = on_change_quality
         self.on_quit = on_quit
+        self.current_quality = initial_quality
         self.is_monitoring = True
         self.icon = None
+
+    def _select_quality(self, quality):
+        def handler(icon, item):
+            self.current_quality = quality
+            if self.on_change_quality:
+                self.on_change_quality(quality)
+            if self.icon:
+                self.icon.menu = self._get_menu()
+        return handler
+
+    def _get_quality_menu(self):
+        items = []
+        for q in AVAILABLE_QUALITIES:
+            label = QUALITY_LABELS.get(q, q)
+            items.append(
+                item(
+                    label,
+                    self._select_quality(q),
+                    checked=lambda it, target_q=q: self.current_quality == target_q,
+                    radio=True
+                )
+            )
+        return pystray.Menu(*items)
 
     def _get_menu(self):
         status_label = "🟢 Monitoramento: Ativo" if self.is_monitoring else "⏸️ Monitoramento: Pausado"
         toggle_label = "Pausar Monitoramento" if self.is_monitoring else "Retomar Monitoramento"
+        q_label_current = QUALITY_LABELS.get(self.current_quality, self.current_quality)
 
         return pystray.Menu(
             item(status_label, lambda: None, enabled=False),
             item(toggle_label, self._toggle_monitoring),
             pystray.Menu.SEPARATOR,
             item("📥 Baixar Link do Clipboard", self._trigger_clipboard_download),
+            item(f"🎬 Resolução Padrão ({q_label_current})", self._get_quality_menu()),
             item("📂 Abrir Pasta de Vídeos", self._open_downloads_folder),
             pystray.Menu.SEPARATOR,
             item("❌ Sair", self._quit)
@@ -69,12 +96,18 @@ class SystemTrayApp:
         if self.on_quit:
             self.on_quit()
 
+    def set_quality(self, quality):
+        """Atualiza externamente a qualidade selecionada."""
+        self.current_quality = quality
+        if self.icon:
+            self.icon.menu = self._get_menu()
+
     def start(self):
         image = create_tray_icon_image(True)
         self.icon = pystray.Icon(
             "media_downloader",
             image,
-            "Video & Audio Quick Downloader",
+            "SnapGrab - Video & Audio Downloader",
             menu=self._get_menu()
         )
         self.icon.run_detached()

@@ -33,6 +33,7 @@ ENV/
 # Downloaded files & temporary binaries
 bin/
 Downloads/
+settings.json
 *.mp4
 *.mp3
 *.mkv

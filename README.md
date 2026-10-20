@@ -34,11 +34,12 @@ O **SnapGrab** roda de forma silenciosa e leve na bandeja do Windows (`System Tr
 ## ✨ Recursos
 
 - ⚡ **Zero Fricção (Clipboard Watcher)**: Monitora links em segundo plano. Copiou `Ctrl+C`, a opção de download aparece.
-- 🎬 **Qualidade Máxima (MP4)**: Baixa na resolução máxima disponível (1080p, 2K, 4K) e mescla vídeo e áudio automaticamente.
+- 🎚️ **Controle de Resolução**: Escolha a qualidade do vídeo (**Máx/4K, 1080p, 720p, 480p**) com um toque no pop-up ou defina uma resolução padrão fixa pelo menu da bandeja.
+- 🎬 **Qualidade Máxima ou Otimizada (MP4)**: Baixa e mescla automaticamente o melhor fluxo de vídeo e áudio compatível via FFmpeg.
 - 🎵 **Extrator de Áudio (MP3)**: Extrai trilhas sonoras, podcasts e músicas em MP3 de alta taxa de bits (320 kbps).
 - 🧰 **FFmpeg Automático**: Já vem com resolução e suporte automático a binários FFmpeg sem exigir instalação manual no PATH do Windows.
 - 🍪 **Bypass de Login (Instagram / X)**: Suporte a cookies de sessão do navegador para baixar Reels e vídeos protegidos.
-- 🖥️ **Bandeja do Sistema (Tray)**: Pause, retome ou baixe sob demanda pelo ícone ao lado do relógio.
+- 🖥️ **Bandeja do Sistema (Tray)**: Alterne a resolução padrão, pause, retome ou baixe sob demanda pelo ícone ao lado do relógio.
 - 🔒 **100% Privado e Local**: Sem envio de dados para servidores externos. Tudo roda na sua máquina.
 
 ---
@@ -97,10 +98,14 @@ Escolha a forma mais conveniente:
 Se preferir usar o terminal diretamente, o SnapGrab também funciona como comando rápido:
 
 ```bash
-# Baixar vídeo em MP4
+# Baixar vídeo na qualidade padrão (ou máxima)
 python main.py "https://www.youtube.com/watch?v=..."
 
-# Baixar apenas áudio em MP3
+# Baixar especificando resolução desejada (1080p, 720p, 480p)
+python main.py "https://www.youtube.com/watch?v=..." video 1080p
+python main.py "https://www.youtube.com/watch?v=..." video 720p
+
+# Baixar apenas áudio em MP3 (320 kbps)
 python main.py "https://www.youtube.com/watch?v=..." audio
 ```
 
@@ -108,11 +113,15 @@ python main.py "https://www.youtube.com/watch?v=..." audio
 
 ## ⚙️ Configurações
 
-Você pode personalizar o comportamento do aplicativo editando o arquivo `config.py`:
+Você pode personalizar o comportamento do aplicativo editando o arquivo `config.py` ou diretamente pelo menu da bandeja:
 
 ```python
 # Pasta de destino padrão
 DEFAULT_DOWNLOAD_DIR = Path.home() / "Downloads" / "Videos"
+
+# Resolução de vídeo padrão ('best', '1080p', '720p', '480p')
+# (Também pode ser alterada diretamente no menu do ícone na bandeja)
+DEFAULT_VIDEO_QUALITY = "best"
 
 # Tempo que o pop-up permanece na tela (segundos)
 TOAST_TIMEOUT_SECONDS = 12
@@ -151,8 +160,8 @@ SnapGrab/
 **SnapGrab** is a lightweight, zero-friction video and audio downloader for Windows powered by `yt-dlp` and `FFmpeg`.
 
 - **Automatic Clipboard Detection**: Whenever you copy (`Ctrl + C`) a video link from YouTube, Instagram, X (Twitter), TikTok, or Reddit, a non-intrusive floating toast pops up in the bottom-right corner.
-- **1-Click Download**: Choose between high-res MP4 or 320kbps MP3 audio.
-- **Tray Resident**: Lives silently in your Windows System Tray without consuming noticeable system resources.
+- **1-Click Download & Quality Control**: Choose between high-res MP4 (Max/4K, 1080p, 720p, 480p) or 320kbps MP3 audio with instant quality pills.
+- **Tray Resident & Quality Presets**: Lives silently in your Windows System Tray and lets you set your default resolution preset with a single click.
 - **Embedded FFmpeg Support**: Automatically resolves static FFmpeg builds to merge streams seamlessly without manual setup.
 
 ---
