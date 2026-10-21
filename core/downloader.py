@@ -5,6 +5,23 @@ import yt_dlp
 from config import DEFAULT_DOWNLOAD_DIR, COOKIE_BROWSER, DEFAULT_VIDEO_QUALITY
 from core.ffmpeg_resolver import get_ffmpeg_path
 
+def get_browser_cookie_spec(browser_name):
+    """
+    Resolve a tupla de navegador/perfil para o yt-dlp.
+    Detecta automaticamente Opera padrão e Opera GX no Windows.
+    """
+    if not browser_name:
+        return None
+    b = browser_name.lower().strip()
+    appdata = os.environ.get("APPDATA", "")
+    if b in ("opera", "operagx"):
+        gx_path = os.path.join(appdata, "Opera Software", "Opera GX Stable")
+        stable_path = os.path.join(appdata, "Opera Software", "Opera Stable")
+        if b == "operagx" or (not os.path.exists(stable_path) and os.path.exists(gx_path)):
+            return ("opera", gx_path)
+        return ("opera",)
+    return (b,)
+
 class MediaDownloader:
     def __init__(self, output_dir=None):
         self.output_dir = Path(output_dir) if output_dir else DEFAULT_DOWNLOAD_DIR
@@ -94,8 +111,14 @@ class MediaDownloader:
         if self.ffmpeg_path:
             ydl_opts['ffmpeg_location'] = self.ffmpeg_path
 
-        if use_cookies and browser_name:
-            ydl_opts['cookiesfrombrowser'] = (browser_name,)
+        # Suporte a arquivo cookies.txt na raiz do projeto ou extração direta do navegador
+        local_cookies_file = Path(__file__).resolve().parent.parent / "cookies.txt"
+        if local_cookies_file.exists():
+            ydl_opts['cookiefile'] = str(local_cookies_file)
+        elif use_cookies and browser_name:
+            cookie_spec = get_browser_cookie_spec(browser_name)
+            if cookie_spec:
+                ydl_opts['cookiesfrombrowser'] = cookie_spec
 
         if media_type == 'audio':
             ydl_opts.update({
@@ -148,6 +171,10 @@ class MediaDownloader:
             if not use_cookies and browser_name and any(k in err_msg.lower() for k in ['login', 'sign in', 'authenticate', 'rate limit', 'private']):
                 print(f"Tentando novamente com cookies do {browser_name}...")
                 return self.download(url, media_type, quality, progress_callback, use_cookies=True, browser_name=browser_name)
+
+            if use_cookies and any(k in err_msg.lower() for k in ['could not copy', 'database is locked', 'permission denied', 'errno 13', 'sharing violation']):
+                b_name = "Opera / Opera GX" if "opera" in str(browser_name).lower() else browser_name.title()
+                err_msg = f"Feche o {b_name} para liberar o acesso aos cookies ou adicione um cookies.txt"
 
             if progress_callback:
                 progress_callback({

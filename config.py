@@ -33,7 +33,8 @@ SUPPORTED_DOMAINS = [
 ]
 
 # Navegador preferido para extração de cookies quando o site (ex: Instagram) exigir login
-COOKIE_BROWSER = "chrome"
+# Opções suportadas: 'opera', 'operagx', 'chrome', 'edge', 'firefox', 'brave'
+COOKIE_BROWSER = "opera"
 
 # Qualidades disponíveis para download de vídeo
 AVAILABLE_QUALITIES = ["best", "1080p", "720p", "480p"]
