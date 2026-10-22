@@ -4,6 +4,7 @@ import time
 import queue
 import threading
 import subprocess
+import webbrowser
 from io import BytesIO
 import tkinter as tk
 from tkinter import ttk
@@ -700,6 +701,8 @@ class ToastManager:
                         toast.set_thumbnail(task["data"])
                 elif action == "history":
                     self._show_history_window(task["records"], task["on_retry"])
+                elif action == "about":
+                    self._show_about_window()
                 elif action == "quit":
                     self.root.quit()
                     return
@@ -734,6 +737,47 @@ class ToastManager:
         self.task_queue.put(
             {"action": "history", "records": records, "on_retry": on_retry}
         )
+
+    def show_about(self):
+        self.task_queue.put({"action": "about"})
+
+    def _show_about_window(self):
+        window = tk.Toplevel(self.root)
+        window.title("Sobre o SnapGrab")
+        window.geometry("380x220")
+        window.resizable(False, False)
+
+        tk.Label(
+            window,
+            text="SnapGrab",
+            font=("Segoe UI", 18, "bold"),
+        ).pack(pady=(22, 4))
+        tk.Label(
+            window,
+            text="Baixador de vídeos e áudios para Windows",
+            font=("Segoe UI", 10),
+        ).pack(pady=(0, 14))
+        tk.Label(
+            window,
+            text="Desenvolvido por @gklein7",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(pady=(0, 8))
+
+        link = tk.Label(
+            window,
+            text="github.com/gklein7/SnapGrab",
+            fg="#4f46e5",
+            cursor="hand2",
+            font=("Segoe UI", 9, "underline"),
+        )
+        link.pack()
+        link.bind(
+            "<Button-1>",
+            lambda _event: webbrowser.open("https://github.com/gklein7/SnapGrab"),
+        )
+        ttk.Button(window, text="Fechar", command=window.destroy).pack(pady=14)
+        window.transient(self.root)
+        window.lift()
 
     def _show_history_window(self, records, on_retry):
         window = tk.Toplevel(self.root)

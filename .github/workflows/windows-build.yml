@@ -26,7 +26,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Build standalone application
         run: >-
-          pyinstaller --noconfirm --clean --windowed --onedir --name SnapGrab
+          pyinstaller --noconfirm --clean --windowed --onedir --name SnapGrab --icon=assets/SnapGrab.ico
           --collect-all yt_dlp --collect-all imageio_ffmpeg
           --collect-all pystray --collect-all PIL main.py
       - name: Install Inno Setup
@@ -34,7 +34,7 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          $version = "1.1.0"
+          $version = "1.1.1"
           if ("${{ github.ref }}" -like "refs/tags/v*") {
             $version = "${{ github.ref_name }}".TrimStart("v")
           }

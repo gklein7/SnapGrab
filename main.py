@@ -24,6 +24,7 @@ class QuickDownloaderApp:
             on_download_clipboard=self.handle_manual_clipboard_download,
             on_change_quality=self.handle_change_quality,
             on_open_history=self.handle_open_history,
+            on_show_about=self.handle_show_about,
             on_quit=self.quit,
             initial_quality=self.current_quality
         )
@@ -67,6 +68,9 @@ class QuickDownloaderApp:
 
     def handle_open_history(self):
         self.toast_mgr.show_history(self.history.recent(), self.handle_retry_history)
+
+    def handle_show_about(self):
+        self.toast_mgr.show_about()
 
     def handle_retry_history(self, record):
         def show_retry():

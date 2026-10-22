@@ -11,7 +11,7 @@ from core.download_manager import DownloadManager
 from core.downloader import MediaDownloader
 from core.history import DownloadHistory
 import ui.tray as tray_module
-from ui.toast import VideoToast
+from ui.toast import ToastManager, VideoToast
 
 
 class ClipboardWatcherTests(unittest.TestCase):
@@ -257,6 +257,27 @@ class SettingsTests(unittest.TestCase):
 
 
 class SystemTrayTests(unittest.TestCase):
+    def test_about_action_calls_ui_callback(self):
+        on_show_about = MagicMock()
+        tray = tray_module.SystemTrayApp(
+            on_toggle_pause=lambda _active: None,
+            on_download_clipboard=lambda: None,
+            on_change_quality=lambda _quality: None,
+            on_quit=lambda: None,
+            on_show_about=on_show_about,
+        )
+
+        tray._show_about(None, None)
+
+        on_show_about.assert_called_once_with()
+
+    def test_about_request_is_queued_for_tkinter_main_thread(self):
+        manager = ToastManager(lambda *_args: None)
+
+        manager.show_about()
+
+        self.assertEqual(manager.task_queue.get_nowait(), {"action": "about"})
+
     def test_start_loads_pystray_before_creating_icon(self):
         fake_icon = MagicMock()
         fake_pystray = MagicMock()
