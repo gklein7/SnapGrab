@@ -1,9 +1,21 @@
 import os
 import subprocess
 from PIL import Image, ImageDraw
-import pystray
-from pystray import MenuItem as item
-from config import DEFAULT_DOWNLOAD_DIR, AVAILABLE_QUALITIES, QUALITY_LABELS
+from config import AVAILABLE_QUALITIES, QUALITY_LABELS, get_download_dir
+
+pystray = None
+item = None
+
+
+def _load_pystray():
+    global pystray, item
+    if pystray is None:
+        import pystray as tray_module
+        from pystray import MenuItem
+
+        pystray = tray_module
+        item = MenuItem
+
 
 def create_tray_icon_image(active=True):
     """Cria dinamicamente uma imagem moderna para o ícone de bandeja."""
@@ -27,11 +39,15 @@ def create_tray_icon_image(active=True):
     return image
 
 class SystemTrayApp:
-    def __init__(self, on_toggle_pause, on_download_clipboard, on_change_quality, on_quit, initial_quality="best"):
+    def __init__(
+        self, on_toggle_pause, on_download_clipboard, on_change_quality, on_quit,
+        on_open_history=None, initial_quality="best"
+    ):
         self.on_toggle_pause = on_toggle_pause
         self.on_download_clipboard = on_download_clipboard
         self.on_change_quality = on_change_quality
         self.on_quit = on_quit
+        self.on_open_history = on_open_history
         self.current_quality = initial_quality
         self.is_monitoring = True
         self.icon = None
@@ -46,6 +62,7 @@ class SystemTrayApp:
         return handler
 
     def _get_quality_menu(self):
+        _load_pystray()
         items = []
         for q in AVAILABLE_QUALITIES:
             label = QUALITY_LABELS.get(q, q)
@@ -60,6 +77,7 @@ class SystemTrayApp:
         return pystray.Menu(*items)
 
     def _get_menu(self):
+        _load_pystray()
         status_label = "🟢 Monitoramento: Ativo" if self.is_monitoring else "⏸️ Monitoramento: Pausado"
         toggle_label = "Pausar Monitoramento" if self.is_monitoring else "Retomar Monitoramento"
         q_label_current = QUALITY_LABELS.get(self.current_quality, self.current_quality)
@@ -69,6 +87,7 @@ class SystemTrayApp:
             item(toggle_label, self._toggle_monitoring),
             pystray.Menu.SEPARATOR,
             item("📥 Baixar Link do Clipboard", self._trigger_clipboard_download),
+            item("📜 Histórico de Downloads", self._open_history),
             item(f"🎬 Resolução Padrão ({q_label_current})", self._get_quality_menu()),
             item("📂 Abrir Pasta de Vídeos", self._open_downloads_folder),
             pystray.Menu.SEPARATOR,
@@ -87,9 +106,17 @@ class SystemTrayApp:
 
     def _open_downloads_folder(self, icon, item):
         try:
-            os.startfile(str(DEFAULT_DOWNLOAD_DIR))
+            download_dir = get_download_dir()
+            if hasattr(os, "startfile"):
+                os.startfile(str(download_dir))
+            else:
+                subprocess.Popen(["xdg-open", str(download_dir)])
         except Exception as e:
             print("Erro ao abrir pasta:", e)
+
+    def _open_history(self, icon, item):
+        if self.on_open_history:
+            self.on_open_history()
 
     def _quit(self, icon, item):
         self.icon.stop()

@@ -1,9 +1,10 @@
 import sys
-import os
 import threading
 import pyperclip
-from config import DEFAULT_DOWNLOAD_DIR, get_current_quality, set_current_quality, QUALITY_LABELS
+from config import get_current_quality, set_current_quality, QUALITY_LABELS, get_download_dir
 from core.downloader import MediaDownloader
+from core.download_manager import DownloadManager
+from core.history import DownloadHistory
 from clipboard_watcher import ClipboardWatcher
 from ui.toast import ToastManager
 from ui.tray import SystemTrayApp
@@ -12,12 +13,17 @@ class QuickDownloaderApp:
     def __init__(self):
         self.current_quality = get_current_quality()
         self.downloader = MediaDownloader()
+        self.history = DownloadHistory()
+        self.download_manager = DownloadManager(
+            self.downloader, on_complete=self._record_download
+        )
         self.toast_mgr = ToastManager(self.handle_download_request)
         self.watcher = ClipboardWatcher(self.handle_url_detected)
         self.tray = SystemTrayApp(
             on_toggle_pause=self.handle_toggle_pause,
             on_download_clipboard=self.handle_manual_clipboard_download,
             on_change_quality=self.handle_change_quality,
+            on_open_history=self.handle_open_history,
             on_quit=self.quit,
             initial_quality=self.current_quality
         )
@@ -39,17 +45,41 @@ class QuickDownloaderApp:
 
     def handle_download_request(self, url, media_type, quality, toast):
         """Disparado quando o usuário clica em Baixar Vídeo ou Baixar Áudio no Toast."""
-        def run_dl():
-            q_label = quality if media_type == "video" else "mp3"
-            print(f"[Download Iniciado] Tipo: {media_type} | Qualidade: {q_label} | URL: {url}")
-            self.downloader.download(
-                url=url,
-                media_type=media_type,
-                quality=quality,
-                progress_callback=lambda data: self.toast_mgr.update_progress(toast, data)
-            )
+        q_label = quality if media_type == "video" else "mp3"
+        print(f"[Na fila] Tipo: {media_type} | Qualidade: {q_label} | URL: {url}")
+        task_id = self.download_manager.submit(
+            url=url,
+            media_type=media_type,
+            quality=quality,
+            title=toast.info.get("title"),
+            progress_callback=lambda data: self.toast_mgr.update_progress(toast, data),
+        )
+        return lambda: self.download_manager.cancel(task_id)
 
-        threading.Thread(target=run_dl, daemon=True).start()
+    def _record_download(self, job, result):
+        self.history.add(job, result)
+        if result.get("success"):
+            print(f"[Download Concluído] {result.get('filename')}")
+        elif result.get("cancelled"):
+            print(f"[Download Cancelado] {job['url']}")
+        else:
+            print(f"[Download Falhou] {result.get('error')}")
+
+    def handle_open_history(self):
+        self.toast_mgr.show_history(self.history.recent(), self.handle_retry_history)
+
+    def handle_retry_history(self, record):
+        def show_retry():
+            url = record.get("url", "")
+            if self.watcher.is_supported_url(url):
+                info = self.downloader.get_info(url)
+                self.toast_mgr.show_toast(
+                    url,
+                    info,
+                    quality=record.get("quality") or self.current_quality,
+                    auto_download=record.get("media_type") or "video",
+                )
+        threading.Thread(target=show_retry, daemon=True).start()
 
     def handle_toggle_pause(self, is_monitoring):
         if is_monitoring:
@@ -74,7 +104,7 @@ class QuickDownloaderApp:
         q_label = QUALITY_LABELS.get(self.current_quality, self.current_quality)
         print("=" * 60)
         print("🚀 SnapGrab - Fast Video & Audio Downloader Iniciado!")
-        print(f"📁 Pasta de destino: {DEFAULT_DOWNLOAD_DIR}")
+        print(f"📁 Pasta de destino: {get_download_dir()}")
         print(f"🎬 Resolução padrão atual: {q_label}")
         print("🟢 Monitorando área de transferência para links de:")
         print("   YouTube, Instagram, X (Twitter), TikTok, Reddit, etc.")
@@ -92,6 +122,7 @@ class QuickDownloaderApp:
     def quit(self):
         print("Encerrando aplicativo...")
         self.watcher.stop()
+        self.download_manager.shutdown(wait=False)
         self.tray.stop()
         self.toast_mgr.stop()
         sys.exit(0)

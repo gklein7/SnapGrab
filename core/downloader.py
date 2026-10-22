@@ -1,8 +1,7 @@
 import os
-import sys
 from pathlib import Path
 import yt_dlp
-from config import DEFAULT_DOWNLOAD_DIR, COOKIE_BROWSER, DEFAULT_VIDEO_QUALITY
+from config import get_cookie_browser, get_download_dir
 from core.ffmpeg_resolver import get_ffmpeg_path
 
 def get_browser_cookie_spec(browser_name):
@@ -24,7 +23,7 @@ def get_browser_cookie_spec(browser_name):
 
 class MediaDownloader:
     def __init__(self, output_dir=None):
-        self.output_dir = Path(output_dir) if output_dir else DEFAULT_DOWNLOAD_DIR
+        self.output_dir = Path(output_dir) if output_dir else get_download_dir()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.ffmpeg_path = get_ffmpeg_path()
 
@@ -59,7 +58,10 @@ class MediaDownloader:
                 'error': str(e)
             }
 
-    def download(self, url, media_type="video", quality="best", progress_callback=None, use_cookies=False, browser_name=COOKIE_BROWSER):
+    def download(
+        self, url, media_type="video", quality="best", progress_callback=None,
+        use_cookies=False, browser_name=None, cancel_event=None
+    ):
         """
         Baixa o vídeo ou áudio do link fornecido.
         :param url: URL do YouTube, Instagram, X, TikTok, etc.
@@ -68,8 +70,16 @@ class MediaDownloader:
         :param progress_callback: Função chamada com dict de status (percent, speed, eta, status, filename)
         :param use_cookies: Se deve tentar extrair cookies do navegador
         :param browser_name: Navegador para cookies ('chrome', 'edge', etc.)
+        :param cancel_event: Evento opcional para interromper um download em andamento.
         """
+        browser_name = browser_name or get_cookie_browser()
+
+        def check_cancelled(_data=None):
+            if cancel_event is not None and cancel_event.is_set():
+                raise yt_dlp.utils.DownloadCancelled("Download cancelado pelo usuário.")
+
         def ydl_hook(d):
+            check_cancelled(d)
             if not progress_callback:
                 return
 
@@ -104,6 +114,7 @@ class MediaDownloader:
         ydl_opts = {
             'outtmpl': out_template,
             'progress_hooks': [ydl_hook],
+            'postprocessor_hooks': [check_cancelled],
             'quiet': True,
             'no_warnings': True,
         }
@@ -142,13 +153,10 @@ class MediaDownloader:
             })
 
         try:
+            check_cancelled()
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-                target_filename = ydl.prepare_filename(info)
-                if media_type == 'audio':
-                    target_filename = os.path.splitext(target_filename)[0] + '.mp3'
-                elif not target_filename.endswith('.mp4'):
-                    target_filename = os.path.splitext(target_filename)[0] + '.mp4'
+                target_filename = self._resolve_output_path(ydl, info, media_type)
 
                 if progress_callback:
                     progress_callback({
@@ -167,21 +175,94 @@ class MediaDownloader:
 
         except Exception as e:
             err_msg = str(e)
+            if isinstance(e, yt_dlp.utils.DownloadCancelled) or (
+                cancel_event is not None and cancel_event.is_set()
+            ):
+                if progress_callback:
+                    progress_callback({'status': 'cancelled', 'error': 'Download cancelado.'})
+                return {'success': False, 'cancelled': True, 'error': 'Download cancelado.'}
+
             # Se falhou por autenticação/restrição (comum no Instagram) e não tentou cookies ainda, tenta com cookies
             if not use_cookies and browser_name and any(k in err_msg.lower() for k in ['login', 'sign in', 'authenticate', 'rate limit', 'private']):
                 print(f"Tentando novamente com cookies do {browser_name}...")
-                return self.download(url, media_type, quality, progress_callback, use_cookies=True, browser_name=browser_name)
+                return self.download(
+                    url,
+                    media_type,
+                    quality,
+                    progress_callback,
+                    use_cookies=True,
+                    browser_name=browser_name,
+                    cancel_event=cancel_event,
+                )
 
             if use_cookies and any(k in err_msg.lower() for k in ['could not copy', 'database is locked', 'permission denied', 'errno 13', 'sharing violation']):
                 b_name = "Opera / Opera GX" if "opera" in str(browser_name).lower() else browser_name.title()
                 err_msg = f"Feche o {b_name} para liberar o acesso aos cookies ou adicione um cookies.txt"
 
+            err_msg = self._explain_error(err_msg)
             if progress_callback:
                 progress_callback({
                     'status': 'error',
                     'error': err_msg
                 })
             return {'success': False, 'error': err_msg}
+
+    def _resolve_output_path(self, ydl, info, media_type):
+        """Usa o caminho que o yt-dlp realmente produziu após merge/conversão."""
+        candidates = []
+        if info.get('filepath'):
+            candidates.append(Path(info['filepath']))
+
+        try:
+            prepared_filename = Path(ydl.prepare_filename(info))
+            expected_suffix = '.mp3' if media_type == 'audio' else '.mp4'
+            candidates.extend(
+                [prepared_filename.with_suffix(expected_suffix), prepared_filename]
+            )
+        except Exception:
+            prepared_filename = None
+
+        if info.get('_filename'):
+            source_filename = Path(info['_filename'])
+            expected_suffix = '.mp3' if media_type == 'audio' else '.mp4'
+            candidates.extend(
+                [source_filename.with_suffix(expected_suffix), source_filename]
+            )
+
+        # requested_downloads lista os fluxos temporários individuais; só use como
+        # fallback, depois do nome final calculado pelo yt-dlp.
+        for requested in info.get('requested_downloads') or []:
+            if requested.get('filepath'):
+                candidates.append(Path(requested['filepath']))
+
+        seen = set()
+        for candidate in candidates:
+            candidate = candidate.expanduser()
+            key = str(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            if candidate.is_file():
+                return str(candidate)
+
+        # Não inventa uma extensão quando o extractor não informa o arquivo final.
+        return str(candidates[0]) if candidates else str(self.output_dir)
+
+    def _explain_error(self, error):
+        """Acrescenta uma indicação prática aos erros mais comuns do yt-dlp."""
+        message = str(error)
+        lowered = message.lower()
+        if "ffmpeg" in lowered and not self.ffmpeg_path:
+            return "FFmpeg não encontrado. Reinstale as dependências do SnapGrab.\n" + message
+        if any(term in lowered for term in ("login", "sign in", "authenticate", "private", "members-only")):
+            return "O conteúdo exige login ou não está público. Configure cookies do navegador e tente novamente.\n" + message
+        if "requested format" in lowered or "format is not available" in lowered:
+            return "A qualidade pedida não está disponível para este link. Tente outra resolução.\n" + message
+        if "unsupported url" in lowered:
+            return "Este link não é compatível com a versão atual do yt-dlp. Atualize o motor e tente novamente.\n" + message
+        if any(term in lowered for term in ("timed out", "connection reset", "network is unreachable", "temporary failure")):
+            return "Falha temporária de conexão. Verifique a internet e tente novamente.\n" + message
+        return message
 
 if __name__ == "__main__":
     downloader = MediaDownloader()

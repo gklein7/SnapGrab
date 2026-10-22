@@ -37,6 +37,9 @@ O **SnapGrab** roda de forma silenciosa e leve na bandeja do Windows (`System Tr
 - 🎚️ **Controle de Resolução**: Escolha a qualidade do vídeo (**Máx/4K, 1080p, 720p, 480p**) com um toque no pop-up ou defina uma resolução padrão fixa pelo menu da bandeja.
 - 🎬 **Qualidade Máxima ou Otimizada (MP4)**: Baixa e mescla automaticamente o melhor fluxo de vídeo e áudio compatível via FFmpeg.
 - 🎵 **Extrator de Áudio (MP3)**: Extrai trilhas sonoras, podcasts e músicas em MP3 de alta taxa de bits (320 kbps).
+- 📋 **Fila de Downloads**: Limita a concorrência e permite cancelar tarefas na fila ou em andamento.
+- 🔁 **Nova tentativa**: Repita downloads com falha diretamente pela notificação.
+- 📜 **Histórico local**: Consulte, abra ou repita downloads recentes pelo menu da bandeja. Os dados ficam em SQLite no perfil do Windows.
 - 🧰 **FFmpeg Automático**: Já vem com resolução e suporte automático a binários FFmpeg sem exigir instalação manual no PATH do Windows.
 - 🍪 **Bypass de Login (Instagram / X)**: Suporte a cookies de sessão do navegador para baixar Reels e vídeos protegidos.
 - 🖥️ **Bandeja do Sistema (Tray)**: Alterne a resolução padrão, pause, retome ou baixe sob demanda pelo ícone ao lado do relógio.
@@ -68,7 +71,7 @@ O SnapGrab suporta mais de 1.000 sites através do motor `yt-dlp`, incluindo:
 
 ### 1. Clonar ou Baixar o Repositório
 ```bash
-git clone https://github.com/SEU-USUARIO/SnapGrab.git
+git clone https://github.com/gklein7/SnapGrab.git
 cd SnapGrab
 ```
 
@@ -90,6 +93,10 @@ Escolha a forma mais conveniente:
   ```
 * **Iniciar com o Windows**:  
   Dê um duplo clique em `instalar_atalho_inicializacao.bat` para adicionar o SnapGrab à inicialização do sistema.
+
+### Instalador do Windows
+
+O workflow **Windows build** gera o instalador `SnapGrab-Setup.exe` no GitHub Actions. Baixe o artefato **SnapGrab-Windows-Installer** na execução mais recente do workflow. O instalador oferece atalhos e a opção de iniciar com o Windows.
 
 ---
 
@@ -113,23 +120,19 @@ python main.py "https://www.youtube.com/watch?v=..." audio
 
 ## ⚙️ Configurações
 
-Você pode personalizar o comportamento do aplicativo editando o arquivo `config.py` ou diretamente pelo menu da bandeja:
+As configurações do usuário são salvas em `%LOCALAPPDATA%/SnapGrab/settings.json`. A pasta padrão é `Downloads/Videos`, e o limite padrão é de dois downloads simultâneos. Exemplo:
 
-```python
-# Pasta de destino padrão
-DEFAULT_DOWNLOAD_DIR = Path.home() / "Downloads" / "Videos"
-
-# Resolução de vídeo padrão ('best', '1080p', '720p', '480p')
-# (Também pode ser alterada diretamente no menu do ícone na bandeja)
-DEFAULT_VIDEO_QUALITY = "best"
-
-# Tempo que o pop-up permanece na tela (segundos)
-TOAST_TIMEOUT_SECONDS = 12
-
-# Navegador para extração de cookies (para vídeos restritos do Instagram/X)
-# Opções: 'chrome', 'edge', 'firefox', 'brave'
-COOKIE_BROWSER = "chrome"
+```json
+{
+  "download_dir": "C:\\Users\\Gabriel\\Downloads\\Videos",
+  "video_quality": "best",
+  "cookie_browser": "opera",
+  "toast_timeout": 12,
+  "max_concurrent_downloads": 2
+}
 ```
+
+A resolução padrão também pode ser alterada pelo menu da bandeja. Se houver um `settings.json` antigo na pasta do projeto, o SnapGrab migra as configurações automaticamente.
 
 ---
 
@@ -138,6 +141,8 @@ COOKIE_BROWSER = "chrome"
 ```text
 SnapGrab/
 ├── core/
+│   ├── download_manager.py    # Fila, concorrência e cancelamento
+│   ├── history.py             # Histórico local SQLite
 │   ├── downloader.py          # Motor de download yt-dlp e pipelines
 │   └── ffmpeg_resolver.py     # Detecção e injeção do binário FFmpeg
 ├── ui/
@@ -146,10 +151,13 @@ SnapGrab/
 ├── clipboard_watcher.py       # Monitoramento assíncrono da área de transferência
 ├── config.py                  # Parâmetros e opções do usuário
 ├── main.py                    # Orquestrador central
+├── installer/SnapGrab.iss     # Instalador do Windows
+├── tests/                     # Testes unitários
 ├── iniciar.bat                # Inicializador com terminal
 ├── iniciar_silencioso.vbs      # Inicializador invisível para segundo plano
 ├── instalar_atalho_inicializacao.bat # Registrador de inicialização com Windows
 ├── requirements.txt           # Dependências Python
+├── .github/workflows/         # Testes e build do instalador
 └── README.md                  # Documentação
 ```
 
@@ -161,6 +169,7 @@ SnapGrab/
 
 - **Automatic Clipboard Detection**: Whenever you copy (`Ctrl + C`) a video link from YouTube, Instagram, X (Twitter), TikTok, or Reddit, a non-intrusive floating toast pops up in the bottom-right corner.
 - **1-Click Download & Quality Control**: Choose between high-res MP4 (Max/4K, 1080p, 720p, 480p) or 320kbps MP3 audio with instant quality pills.
+- **Managed downloads**: A bounded queue supports cancellation, retries, and a local SQLite history.
 - **Tray Resident & Quality Presets**: Lives silently in your Windows System Tray and lets you set your default resolution preset with a single click.
 - **Embedded FFmpeg Support**: Automatically resolves static FFmpeg builds to merge streams seamlessly without manual setup.
 
