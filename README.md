@@ -36,9 +36,10 @@ O **SnapGrab** roda de forma silenciosa e leve na bandeja do Windows (`System Tr
 ## ✨ Recursos
 
 - ⚡ **Zero Fricção (Clipboard Watcher)**: Monitora links em segundo plano. Copiou `Ctrl+C`, a opção de download aparece.
-- 🎚️ **Controle de Resolução**: Escolha a qualidade do vídeo (**Máx/4K, 1080p, 720p, 480p**) com um toque no pop-up ou defina uma resolução padrão fixa pelo menu da bandeja.
+- 🎚️ **Controle de Resolução**: Escolha a melhor qualidade ou uma das resoluções encontradas para o link, com um toque no pop-up.
 - 🎬 **Qualidade Máxima ou Otimizada (MP4)**: Baixa e mescla automaticamente o melhor fluxo de vídeo e áudio compatível via FFmpeg.
 - 🎵 **Extrator de Áudio (MP3)**: Extrai trilhas sonoras, podcasts e músicas em MP3 de alta taxa de bits (320 kbps).
+- 🖼️ **Prévia completa**: Exibe miniatura, título, canal, duração, resoluções disponíveis e tamanho estimado antes do download.
 - 📋 **Fila de Downloads**: Limita a concorrência e permite cancelar tarefas na fila ou em andamento.
 - 🔁 **Nova tentativa**: Repita downloads com falha diretamente pela notificação.
 - 📜 **Histórico local**: Consulte, abra ou repita downloads recentes pelo menu da bandeja. Os dados ficam em SQLite no perfil do Windows.
@@ -183,7 +184,8 @@ SnapGrab/
 [⬇️ Download the latest Windows installer](https://github.com/gklein7/SnapGrab/releases/latest/download/SnapGrab-Setup.exe). Python is not required to use the installer.
 
 - **Automatic Clipboard Detection**: Whenever you copy (`Ctrl + C`) a video link from YouTube, Instagram, X (Twitter), TikTok, or Reddit, a non-intrusive floating toast pops up in the bottom-right corner.
-- **1-Click Download & Quality Control**: Choose between high-res MP4 (Max/4K, 1080p, 720p, 480p) or 320kbps MP3 audio with instant quality pills.
+- **1-Click Download & Quality Control**: Choose the best available video quality or another resolution found for the link, or download 320kbps MP3 audio.
+- **Complete preview**: See the thumbnail, title, channel, duration, available resolutions, and estimated file size before downloading.
 - **Managed downloads**: A bounded queue supports cancellation, retries, and a local SQLite history.
 - **Tray Resident & Quality Presets**: Lives silently in your Windows System Tray and lets you set your default resolution preset with a single click.
 - **Embedded FFmpeg Support**: Automatically resolves static FFmpeg builds to merge streams seamlessly without manual setup.
