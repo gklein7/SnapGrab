@@ -10,8 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-    { name = "gklein7", url = "https://github.com/gklein7" }
+    { name = "gklein7" }
 ]
+urls = { Homepage = "https://github.com/gklein7/SnapGrab", Repository = "https://github.com/gklein7/SnapGrab" }
 keywords = ["yt-dlp", "downloader", "video", "audio", "youtube", "instagram", "twitter", "x", "tiktok", "windows-tray"]
 classifiers = [
     "Programming Language :: Python :: 3",
