@@ -130,6 +130,7 @@ class SystemTrayApp:
             self.icon.menu = self._get_menu()
 
     def start(self):
+        _load_pystray()
         image = create_tray_icon_image(True)
         self.icon = pystray.Icon(
             "media_downloader",

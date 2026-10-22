@@ -1,5 +1,7 @@
 #define MyAppName "SnapGrab"
-#define MyAppVersion "1.1.0"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.1.0"
+#endif
 #define MyAppPublisher "SnapGrab Contributors"
 #define MyAppExeName "SnapGrab.exe"
 #define PyInstallerOutput "..\dist\SnapGrab"

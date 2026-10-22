@@ -3,13 +3,14 @@ import threading
 import unittest
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from clipboard_watcher import ClipboardWatcher
 import config
 from core.download_manager import DownloadManager
 from core.downloader import MediaDownloader
 from core.history import DownloadHistory
+import ui.tray as tray_module
 
 
 class ClipboardWatcherTests(unittest.TestCase):
@@ -193,6 +194,33 @@ class SettingsTests(unittest.TestCase):
                 self.assertTrue(custom_downloads.is_dir())
                 self.assertEqual(config.get_max_concurrent_downloads(), 5)
                 self.assertEqual(config.get_current_quality(), config.DEFAULT_VIDEO_QUALITY)
+
+
+class SystemTrayTests(unittest.TestCase):
+    def test_start_loads_pystray_before_creating_icon(self):
+        fake_icon = MagicMock()
+        fake_pystray = MagicMock()
+        fake_pystray.Icon.return_value = fake_icon
+        tray = tray_module.SystemTrayApp(
+            on_toggle_pause=lambda: None,
+            on_download_clipboard=lambda: None,
+            on_change_quality=lambda _quality: None,
+            on_quit=lambda: None,
+        )
+
+        def load_pystray():
+            tray_module.pystray = fake_pystray
+
+        with (
+            patch.object(tray_module, "pystray", None),
+            patch.object(tray_module, "_load_pystray", side_effect=load_pystray) as load,
+            patch.object(tray, "_get_menu", return_value=None),
+        ):
+            tray.start()
+
+        load.assert_called_once()
+        fake_pystray.Icon.assert_called_once()
+        fake_icon.run_detached.assert_called_once()
 
 
 if __name__ == "__main__":
