@@ -338,7 +338,7 @@ class VideoToast:
             fg_col = "#ffffff" if is_sel else "#a1a1aa"
 
             btn_q = tk.Button(
-                quality_frame,
+                options_frame,
                 text=label,
                 bg=bg_col,
                 fg=fg_col,

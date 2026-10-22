@@ -12,6 +12,7 @@ from core.downloader import MediaDownloader
 from core.history import DownloadHistory
 import ui.tray as tray_module
 from ui.toast import ToastManager, VideoToast
+import ui.toast as toast_module
 
 
 class ClipboardWatcherTests(unittest.TestCase):
@@ -77,6 +78,34 @@ class DownloaderPathTests(unittest.TestCase):
             youtube_dl.assert_not_called()
             self.assertTrue(result["cancelled"])
             self.assertIn("cancelled", statuses)
+
+
+class ToastLayoutTests(unittest.TestCase):
+    def test_quality_buttons_use_the_frame_managed_by_grid(self):
+        toast = VideoToast.__new__(VideoToast)
+        toast.dynamic_frame = MagicMock()
+        toast.dynamic_frame.winfo_children.return_value = []
+        toast.quality_options = [{"value": "best", "label": "Máx."}]
+        toast.selected_quality = "best"
+        toast._on_click_download = MagicMock()
+
+        quality_frame = MagicMock()
+        options_frame = MagicMock()
+        action_frame = MagicMock()
+        quality_button = MagicMock()
+        video_button = MagicMock()
+        audio_button = MagicMock()
+
+        with (
+            patch.object(toast_module.tk, "Frame", side_effect=[quality_frame, options_frame, action_frame]),
+            patch.object(toast_module.tk, "Label"),
+            patch.object(toast_module.tk, "Button", side_effect=[quality_button, video_button, audio_button]) as button_factory,
+        ):
+            toast._show_action_buttons()
+
+        self.assertIs(button_factory.call_args_list[0].args[0], options_frame)
+        quality_button.grid.assert_called_once()
+        quality_button.pack.assert_not_called()
 
 
 class PreviewMetadataTests(unittest.TestCase):
