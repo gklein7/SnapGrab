@@ -13,6 +13,8 @@
 
 [Português](#-sobre-o-projeto) • [English](#-english-overview) • [Como Usar](#-instalação-e-uso) • [Configurações](#-configurações)
 
+[⬇️ Baixar SnapGrab para Windows](https://github.com/gklein7/SnapGrab/releases/latest/download/SnapGrab-Setup.exe)
+
 ---
 
 </div>
@@ -65,6 +67,17 @@ O SnapGrab suporta mais de 1.000 sites através do motor `yt-dlp`, incluindo:
 
 ## 🚀 Instalação e Uso
 
+### Instalação recomendada — Windows
+
+1. [Baixe o instalador mais recente](https://github.com/gklein7/SnapGrab/releases/latest/download/SnapGrab-Setup.exe) na página de Releases.
+2. Execute `SnapGrab-Setup.exe` e siga as instruções. O instalador oferece atalhos e a opção de iniciar com o Windows.
+
+Não é necessário instalar Python nem compilar o projeto para usar essa versão.
+
+### Executar pelo código-fonte (opcional)
+
+Use estas instruções se quiser executar ou modificar o projeto em Python:
+
 ### Pré-requisitos
 - **Windows 10 ou 11**
 - **Python 3.10+** ([Baixar no python.org](https://www.python.org/downloads/))
@@ -94,9 +107,9 @@ Escolha a forma mais conveniente:
 * **Iniciar com o Windows**:  
   Dê um duplo clique em `instalar_atalho_inicializacao.bat` para adicionar o SnapGrab à inicialização do sistema.
 
-### Instalador do Windows
+### Releases
 
-O workflow **Windows build** gera o instalador `SnapGrab-Setup.exe` no GitHub Actions. Baixe o artefato **SnapGrab-Windows-Installer** na execução mais recente do workflow. O instalador oferece atalhos e a opção de iniciar com o Windows.
+Ao publicar uma tag no formato `v*`, o workflow **Windows build** cria uma release com o instalador `SnapGrab-Setup.exe`. O link de download acima sempre aponta para a release mais recente.
 
 ---
 
@@ -166,6 +179,8 @@ SnapGrab/
 ## 🇺🇸 English Overview
 
 **SnapGrab** is a lightweight, zero-friction video and audio downloader for Windows powered by `yt-dlp` and `FFmpeg`.
+
+[⬇️ Download the latest Windows installer](https://github.com/gklein7/SnapGrab/releases/latest/download/SnapGrab-Setup.exe). Python is not required to use the installer.
 
 - **Automatic Clipboard Detection**: Whenever you copy (`Ctrl + C`) a video link from YouTube, Instagram, X (Twitter), TikTok, or Reddit, a non-intrusive floating toast pops up in the bottom-right corner.
 - **1-Click Download & Quality Control**: Choose between high-res MP4 (Max/4K, 1080p, 720p, 480p) or 320kbps MP3 audio with instant quality pills.
