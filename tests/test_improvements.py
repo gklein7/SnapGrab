@@ -11,6 +11,7 @@ from core.download_manager import DownloadManager
 from core.downloader import MediaDownloader
 from core.history import DownloadHistory
 import ui.tray as tray_module
+from ui.toast import VideoToast
 
 
 class ClipboardWatcherTests(unittest.TestCase):
@@ -76,6 +77,65 @@ class DownloaderPathTests(unittest.TestCase):
             youtube_dl.assert_not_called()
             self.assertTrue(result["cancelled"])
             self.assertIn("cancelled", statuses)
+
+
+class PreviewMetadataTests(unittest.TestCase):
+    def test_get_info_returns_preview_metadata_from_ytdlp(self):
+        fake_ydl = MagicMock()
+        fake_ydl.__enter__.return_value.extract_info.return_value = {
+            "title": "Sample video",
+            "uploader": "Sample channel",
+            "duration": 120,
+            "thumbnail": "https://images.example.test/thumbnail.jpg",
+            "formats": [
+                {"height": 720, "vcodec": "avc1", "acodec": "mp4a", "filesize": 8_000_000},
+                {"height": 480, "vcodec": "avc1", "acodec": "mp4a", "filesize": 4_000_000},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloader = MediaDownloader(output_dir=temp_dir)
+            with patch("core.downloader.yt_dlp.YoutubeDL", return_value=fake_ydl):
+                info = downloader.get_info("https://youtube.com/watch?v=sample")
+
+        self.assertEqual(info["title"], "Sample video")
+        self.assertEqual(info["uploader"], "Sample channel")
+        self.assertEqual(info["available_resolutions"], [720, 480])
+        self.assertEqual(info["size_estimates"]["best"], 8_000_000)
+
+    def test_lists_real_resolutions_and_estimates_video_and_audio_sizes(self):
+        preview = MediaDownloader._build_preview_details(
+            {
+                "duration": 1000,
+                "formats": [
+                    {"height": 1080, "vcodec": "avc1", "acodec": "none", "filesize": 90_000_000},
+                    {"height": 720, "vcodec": "avc1", "acodec": "none", "filesize": 45_000_000},
+                    {"height": 480, "vcodec": "avc1", "acodec": "none", "filesize": 25_000_000},
+                    {"vcodec": "none", "acodec": "mp4a", "filesize": 10_000_000},
+                ],
+            }
+        )
+
+        self.assertEqual(preview["available_resolutions"], [1080, 720, 480])
+        self.assertEqual(
+            [option["value"] for option in preview["quality_options"]],
+            ["best", "720p", "480p"],
+        )
+        self.assertEqual(preview["size_estimates"]["best"], 100_000_000)
+        self.assertEqual(preview["size_estimates"]["720p"], 55_000_000)
+        self.assertEqual(preview["size_estimates"]["480p"], 35_000_000)
+        self.assertEqual(preview["audio_size_estimate"], 40_000_000)
+
+    def test_bitrate_can_estimate_missing_format_size_and_duration(self):
+        estimate = MediaDownloader._format_size_estimate(
+            {"tbr": 1500}, duration=60
+        )
+        self.assertEqual(estimate, 11_250_000)
+
+    def test_preview_duration_and_size_labels_are_readable(self):
+        self.assertEqual(VideoToast._format_duration(3723), "1:02:03")
+        self.assertEqual(VideoToast._format_duration(125), "2:05")
+        self.assertEqual(VideoToast._format_size(1_572_864), "~1.5 MB")
+        self.assertEqual(VideoToast._format_size(0), "indisponível")
 
 
 class DownloadManagerTests(unittest.TestCase):

@@ -40,12 +40,14 @@ class MediaDownloader:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
+                preview = self._build_preview_details(info)
                 return {
                     'title': info.get('title', 'Vídeo sem título'),
                     'uploader': info.get('uploader') or info.get('channel', 'Desconhecido'),
                     'duration': info.get('duration', 0),
                     'thumbnail': info.get('thumbnail'),
-                    'url': url
+                    'url': url,
+                    **preview,
                 }
         except Exception as e:
             # Fallback amigável se info rápida falhar
@@ -55,8 +57,134 @@ class MediaDownloader:
                 'duration': 0,
                 'thumbnail': None,
                 'url': url,
+                'available_resolutions': [],
+                'quality_options': [{'value': 'best', 'label': 'Máx.'}],
+                'size_estimates': {'best': 0},
+                'audio_size_estimate': 0,
                 'error': str(e)
             }
+
+    @staticmethod
+    def _format_size_estimate(format_info, duration):
+        """Estima o tamanho de um formato usando bytes ou bitrate e duração."""
+        for key in ('filesize', 'filesize_approx'):
+            try:
+                size = int(format_info.get(key) or 0)
+            except (TypeError, ValueError):
+                size = 0
+            if size > 0:
+                return size
+
+        try:
+            bitrate_kbps = float(format_info.get('tbr') or format_info.get('abr') or 0)
+            duration_seconds = float(duration or 0)
+        except (TypeError, ValueError):
+            return 0
+        if bitrate_kbps <= 0 or duration_seconds <= 0:
+            return 0
+        # kb/s * segundos * 1000 bits / 8 bits por byte.
+        return int(duration_seconds * bitrate_kbps * 125)
+
+    @classmethod
+    def _estimate_video_size(cls, formats, duration, max_height=None):
+        video_formats = []
+        audio_formats = []
+        combined_formats = []
+        for format_info in formats:
+            if not isinstance(format_info, dict):
+                continue
+            video_codec = format_info.get('vcodec')
+            audio_codec = format_info.get('acodec')
+            has_video = video_codec not in (None, 'none')
+            has_audio = audio_codec not in (None, 'none')
+            if has_video:
+                try:
+                    height = int(format_info.get('height') or 0)
+                except (TypeError, ValueError):
+                    continue
+                if height <= 0 or (max_height and height > max_height):
+                    continue
+                if has_audio:
+                    combined_formats.append(format_info)
+                else:
+                    video_formats.append(format_info)
+            elif has_audio:
+                audio_formats.append(format_info)
+
+        def rank(format_info):
+            try:
+                height = int(format_info.get('height') or 0)
+                bitrate = float(format_info.get('tbr') or format_info.get('abr') or 0)
+            except (TypeError, ValueError):
+                height = 0
+                bitrate = 0
+            return (
+                height,
+                bitrate,
+                cls._format_size_estimate(format_info, duration),
+            )
+
+        if video_formats and audio_formats:
+            best_video = max(video_formats, key=rank)
+            best_audio = max(audio_formats, key=rank)
+            video_size = cls._format_size_estimate(best_video, duration)
+            audio_size = cls._format_size_estimate(best_audio, duration)
+            if video_size and audio_size:
+                return video_size + audio_size
+
+        if combined_formats:
+            return cls._format_size_estimate(max(combined_formats, key=rank), duration)
+        return 0
+
+    @classmethod
+    def _build_preview_details(cls, info):
+        """Constrói resoluções reais e estimativas para a prévia do pop-up."""
+        duration = info.get('duration') or 0
+        formats = info.get('formats') or []
+        heights = set()
+        for format_info in formats:
+            if not isinstance(format_info, dict):
+                continue
+            if format_info.get('vcodec') in (None, 'none'):
+                continue
+            try:
+                height = int(format_info.get('height') or 0)
+            except (TypeError, ValueError):
+                continue
+            if height > 0:
+                heights.add(height)
+
+        available_heights = sorted(heights, reverse=True)
+        max_height = available_heights[0] if available_heights else None
+        quality_options = [{'value': 'best', 'label': f'Máx. · {max_height}p' if max_height else 'Máx.'}]
+        # Cada resolução encontrada fica disponível para seleção no pop-up.
+        for height in [value for value in available_heights if value != max_height]:
+            quality_options.append({'value': f'{height}p', 'label': f'{height}p'})
+
+        size_estimates = {
+            'best': cls._estimate_video_size(formats, duration),
+        }
+        for option in quality_options[1:]:
+            height = int(option['value'][:-1])
+            size_estimates[option['value']] = cls._estimate_video_size(
+                formats, duration, max_height=height
+            )
+
+        audio_size_estimate = 0
+        try:
+            duration_seconds = float(duration or 0)
+            if duration_seconds > 0:
+                # O áudio é convertido para MP3 a 320 kb/s pelo downloader.
+                audio_size_estimate = int(duration_seconds * 320 * 125)
+        except (TypeError, ValueError):
+            pass
+
+        return {
+            'available_resolutions': available_heights,
+            'quality_options': quality_options,
+            'size_estimates': size_estimates,
+            'audio_size_estimate': audio_size_estimate,
+        }
 
     def download(
         self, url, media_type="video", quality="best", progress_callback=None,
