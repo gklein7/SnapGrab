@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -117,6 +120,7 @@ private fun SnapGrabScreen(
 ) {
     val state = viewModel.uiState
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val clipboard = context.getSystemService(ClipboardManager::class.java)
     var qualityMenuOpen by remember { mutableStateOf(false) }
     val active = state.isStartingDownload || workInfo?.state?.isFinished == false
@@ -250,6 +254,16 @@ private fun SnapGrabScreen(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "github.com/gklein7",
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .clickable(role = Role.Link) {
+                        uriHandler.openUri("https://github.com/gklein7")
+                    },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
