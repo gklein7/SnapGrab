@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="570" viewBox="0 0 960 570" role="img" aria-labelledby="title desc">
+  <title id="title">Prévia completa do SnapGrab</title>
+  <desc id="desc">Notificação do SnapGrab com miniatura, detalhes do vídeo, resoluções disponíveis, tamanho estimado e opções para baixar em MP4 ou MP3.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#171b25"/><stop offset="1" stop-color="#10131a"/>
+    </linearGradient>
+    <linearGradient id="thumb" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#285a65"/><stop offset=".5" stop-color="#bb7654"/><stop offset="1" stop-color="#253b52"/>
+    </linearGradient>
+    <linearGradient id="selected" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7168ff"/><stop offset="1" stop-color="#574ce0"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000" flood-opacity=".38"/>
+    </filter>
+    <clipPath id="thumbclip"><rect x="64" y="150" width="245" height="138" rx="15"/></clipPath>
+  </defs>
+  <rect width="960" height="570" rx="30" fill="#0b0e13"/>
+  <g filter="url(#shadow)">
+    <rect x="30" y="28" width="900" height="514" rx="24" fill="url(#bg)" stroke="#2b303b"/>
+  </g>
+  <circle cx="67" cy="68" r="16" fill="#665cf1"/>
+  <path d="M62 58h10l-2 7 5 0-11 13 2-9h-5z" fill="#fff"/>
+  <text x="96" y="75" fill="#f6f7fb" font-family="Segoe UI,Arial,sans-serif" font-size="23" font-weight="700">SnapGrab</text>
+  <text x="827" y="73" fill="#858c9b" font-family="Segoe UI,Arial,sans-serif" font-size="14">PRÉVIA DO DOWNLOAD</text>
+  <line x1="56" y1="101" x2="904" y2="101" stroke="#2b303b"/>
+  <g clip-path="url(#thumbclip)">
+    <rect x="64" y="150" width="245" height="138" fill="url(#thumb)"/>
+    <circle cx="255" cy="172" r="33" fill="#f6c27a" opacity=".88"/>
+    <path d="M45 266 111 195l51 48 37-37 131 103v42H45z" fill="#233d43" opacity=".85"/>
+    <path d="m42 286 89-52 48 31 52-36 101 56v35H42z" fill="#192b34" opacity=".92"/>
+    <path d="M68 150h245v138H68z" fill="#10202a" opacity=".08"/>
+  </g>
+  <circle cx="186" cy="219" r="25" fill="#12141acc"/>
+  <path d="m180 205 20 14-20 14z" fill="#fff"/>
+  <rect x="240" y="260" width="55" height="21" rx="6" fill="#11151bd9"/>
+  <text x="267.5" y="275" text-anchor="middle" fill="#fff" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="700">18:42</text>
+  <text x="333" y="158" fill="#f5f6fa" font-family="Segoe UI,Arial,sans-serif" font-size="21" font-weight="700">Explorando paisagens incríveis</text>
+  <text x="333" y="187" fill="#a8afbd" font-family="Segoe UI,Arial,sans-serif" font-size="15">Canal Exemplo · YouTube</text>
+  <rect x="333" y="207" width="124" height="30" rx="15" fill="#232a37"/>
+  <circle cx="350" cy="222" r="4" fill="#8e85ff"/>
+  <text x="362" y="227" fill="#d9dce5" font-family="Segoe UI,Arial,sans-serif" font-size="13">Vídeo · 18:42</text>
+  <rect x="473" y="207" width="151" height="30" rx="15" fill="#232a37"/>
+  <path d="M490 218h12v9h-12zM492 215h8v3h-8z" fill="#9da6b8"/>
+  <text x="510" y="227" fill="#d9dce5" font-family="Segoe UI,Arial,sans-serif" font-size="13">Estimado: 842 MB</text>
+  <text x="64" y="330" fill="#c5cad5" font-family="Segoe UI,Arial,sans-serif" font-size="14" font-weight="600">QUALIDADE DO VÍDEO</text>
+  <text x="904" y="330" text-anchor="end" fill="#8f97a8" font-family="Segoe UI,Arial,sans-serif" font-size="13">Resoluções disponíveis</text>
+  <g font-family="Segoe UI,Arial,sans-serif" font-size="14" font-weight="600" text-anchor="middle">
+    <rect x="64" y="347" width="98" height="40" rx="11" fill="url(#selected)"/><text x="113" y="372" fill="#fff">1080p</text>
+    <rect x="172" y="347" width="98" height="40" rx="11" fill="#222936" stroke="#363d4b"/><text x="221" y="372" fill="#d4d8e1">2160p</text>
+    <rect x="280" y="347" width="98" height="40" rx="11" fill="#222936" stroke="#363d4b"/><text x="329" y="372" fill="#d4d8e1">1440p</text>
+    <rect x="388" y="347" width="98" height="40" rx="11" fill="#222936" stroke="#363d4b"/><text x="437" y="372" fill="#d4d8e1">720p</text>
+    <rect x="496" y="347" width="98" height="40" rx="11" fill="#222936" stroke="#363d4b"/><text x="545" y="372" fill="#d4d8e1">480p</text>
+    <rect x="604" y="347" width="98" height="40" rx="11" fill="#222936" stroke="#363d4b"/><text x="653" y="372" fill="#d4d8e1">360p</text>
+    <rect x="712" y="347" width="98" height="40" rx="11" fill="#222936" stroke="#363d4b"/><text x="761" y="372" fill="#d4d8e1">240p</text>
+    <rect x="820" y="347" width="84" height="40" rx="11" fill="#222936" stroke="#363d4b"/><text x="862" y="372" fill="#d4d8e1">144p</text>
+  </g>
+  <line x1="64" y1="410" x2="904" y2="410" stroke="#2b303b"/>
+  <text x="64" y="445" fill="#8e96a6" font-family="Segoe UI,Arial,sans-serif" font-size="13">QUALIDADE SELECIONADA</text>
+  <text x="64" y="472" fill="#f1f2f6" font-family="Segoe UI,Arial,sans-serif" font-size="17" font-weight="700">1080p · MP4</text>
+  <text x="64" y="500" fill="#aeb4c1" font-family="Segoe UI,Arial,sans-serif" font-size="13">Tamanho aproximado: 842 MB</text>
+  <rect x="572" y="433" width="156" height="58" rx="13" fill="#242b38" stroke="#3b4352"/>
+  <path d="M600 451h20v16h-20zM604 447h12v4h-12zM604 456h12" fill="none" stroke="#d4d9e4" stroke-width="2" stroke-linejoin="round"/>
+  <text x="640" y="469" fill="#e6e8ee" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700">Baixar MP4</text>
+  <rect x="741" y="433" width="163" height="58" rx="13" fill="url(#selected)"/>
+  <path d="M767 454h14v15h-14zM770 450h8v4h-8z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
+  <text x="795" y="469" fill="#fff" font-family="Segoe UI,Arial,sans-serif" font-size="15" font-weight="700">Extrair MP3</text>
+  <text x="904" y="519" text-anchor="end" fill="#677080" font-family="Segoe UI,Arial,sans-serif" font-size="11">Layout ilustrativo</text>
+</svg>
