@@ -7,20 +7,20 @@ import subprocess
 import tkinter as tk
 from tkinter import ttk
 import urllib.parse
-from config import TOAST_TIMEOUT_SECONDS, DEFAULT_DOWNLOAD_DIR, DEFAULT_VIDEO_QUALITY, AVAILABLE_QUALITIES
+from config import DEFAULT_VIDEO_QUALITY, AVAILABLE_QUALITIES, get_download_dir, get_toast_timeout
 
 def detect_platform(url):
     """Retorna badge e cor da plataforma com base na URL."""
-    url_lower = url.lower()
-    if "youtube.com" in url_lower or "youtu.be" in url_lower:
+    hostname = (urllib.parse.urlparse(url).hostname or "").lower().rstrip(".")
+    if hostname == "youtu.be" or hostname == "youtube.com" or hostname.endswith(".youtube.com"):
         return "▶ YouTube", "#ef4444" # Vermelho
-    elif "instagram.com" in url_lower:
+    elif hostname == "instagram.com" or hostname.endswith(".instagram.com"):
         return "📷 Instagram", "#e1306c" # Rosa/Instagram
-    elif "twitter.com" in url_lower or "x.com" in url_lower:
+    elif hostname in {"twitter.com", "x.com"} or hostname.endswith(".twitter.com") or hostname.endswith(".x.com"):
         return "𝕏 X (Twitter)", "#0f1419" # Preto/X
-    elif "tiktok.com" in url_lower:
+    elif hostname == "tiktok.com" or hostname.endswith(".tiktok.com"):
         return "🎵 TikTok", "#00f2fe" # Ciano
-    elif "reddit.com" in url_lower:
+    elif hostname == "reddit.com" or hostname.endswith(".reddit.com"):
         return "🤖 Reddit", "#ff4500" # Laranja
     else:
         return "🌐 Vídeo Web", "#3b82f6" # Azul
@@ -34,6 +34,9 @@ class VideoToast:
         self.on_dismiss = on_dismiss
         self.selected_quality = default_quality if default_quality in AVAILABLE_QUALITIES else "best"
         self.is_downloading = False
+        self.last_media_type = "video"
+        self.cancel_action = None
+        self.cancel_btn = None
         self.timer_id = None
         self.result_filename = None
 
@@ -46,14 +49,21 @@ class VideoToast:
         # Dimensões e posicionamento (canto inferior direito)
         self.width = 410
         self.height = 220
-        screen_w = self.win.winfo_screenwidth()
-        screen_h = self.win.winfo_screenheight()
-        pos_x = screen_w - self.width - 24
-        pos_y = screen_h - self.height - 60
-        self.win.geometry(f"{self.width}x{self.height}+{pos_x}+{pos_y}")
+        self.reposition(0)
 
         self._build_ui()
-        self._start_autoclose_timer(TOAST_TIMEOUT_SECONDS)
+        self._start_autoclose_timer(get_toast_timeout())
+
+    def reposition(self, index):
+        if not self.win.winfo_exists():
+            return
+        screen_w = self.win.winfo_screenwidth()
+        screen_h = self.win.winfo_screenheight()
+        rows_per_column = max(1, (screen_h - 80) // (self.height + 12))
+        column, row = divmod(index, rows_per_column)
+        pos_x = max(8, screen_w - self.width - 24 - column * (self.width + 12))
+        pos_y = max(8, screen_h - self.height - 60 - row * (self.height + 12))
+        self.win.geometry(f"{self.width}x{self.height}+{pos_x}+{pos_y}")
 
     def _build_ui(self):
         # Container com borda
@@ -116,7 +126,7 @@ class VideoToast:
 
     def _set_quality(self, q):
         self.selected_quality = q
-        self._start_autoclose_timer(TOAST_TIMEOUT_SECONDS)
+        self._start_autoclose_timer(get_toast_timeout())
         self._show_action_buttons()
 
     def _show_action_buttons(self):
@@ -210,21 +220,35 @@ class VideoToast:
     def _on_click_download(self, media_type):
         self._cancel_autoclose_timer()
         self.is_downloading = True
+        self.last_media_type = media_type
 
         for widget in self.dynamic_frame.winfo_children():
             widget.destroy()
 
         # Label de status
         quality_str = self.selected_quality if media_type == "video" else "mp3"
+        status_row = tk.Frame(self.dynamic_frame, bg="#18181b")
+        status_row.pack(fill="x", pady=(0, 6))
         self.status_lbl = tk.Label(
-            self.dynamic_frame,
-            text=f"Iniciando download ({quality_str})...",
+            status_row,
+            text=f"Adicionando à fila ({quality_str})...",
             bg="#18181b",
             fg="#a1a1aa",
             font=("Segoe UI", 9),
             anchor="w"
         )
-        self.status_lbl.pack(fill="x", pady=(0, 6))
+        self.status_lbl.pack(side="left", fill="x", expand=True)
+        self.cancel_btn = tk.Button(
+            status_row,
+            text="Cancelar",
+            bg="#3f3f46",
+            fg="#f4f4f5",
+            font=("Segoe UI", 8),
+            relief="flat",
+            cursor="hand2",
+            command=self._cancel_download,
+        )
+        self.cancel_btn.pack(side="right", padx=(6, 0))
 
         # Barra de progresso visual em Canvas
         self.progress_canvas = tk.Canvas(
@@ -242,7 +266,15 @@ class VideoToast:
         )
 
         # Dispara download passando a qualidade escolhida
-        self.on_download_request(self.url, media_type, self.selected_quality, self)
+        self.cancel_action = self.on_download_request(
+            self.url, media_type, self.selected_quality, self
+        )
+
+    def _cancel_download(self):
+        if self.cancel_action:
+            self.cancel_action()
+            if self.cancel_btn and self.cancel_btn.winfo_exists():
+                self.cancel_btn.config(text="Cancelando…", state="disabled")
 
     def update_progress(self, data):
         """Atualiza a interface com base no hook do yt-dlp."""
@@ -250,7 +282,18 @@ class VideoToast:
             return
 
         status = data.get("status")
-        if status == "downloading":
+        if status == "queued":
+            self.status_lbl.config(text="Na fila de downloads...", fg="#a1a1aa")
+        elif status == "started":
+            self.status_lbl.config(text="Download iniciado...", fg="#a1a1aa")
+        elif status == "cancelling":
+            if self.cancel_btn and self.cancel_btn.winfo_exists():
+                self.cancel_btn.config(text="Cancelando…", state="disabled")
+            self.status_lbl.config(text="Cancelando download...", fg="#fbbf24")
+        elif status == "cancelled":
+            self.is_downloading = False
+            self._show_error_state("Download cancelado.", retry=True)
+        elif status == "downloading":
             pct = data.get("percent", 0)
             speed = data.get("speed_str", "")
             eta = data.get("eta_str", "")
@@ -268,12 +311,14 @@ class VideoToast:
             self.status_lbl.config(text="Processando e mesclando com FFmpeg...", fg="#38bdf8")
 
         elif status == "completed":
+            self.is_downloading = False
             self.result_filename = data.get("filename")
             self._show_completed_state()
 
         elif status == "error":
+            self.is_downloading = False
             err = data.get("error", "Erro desconhecido")
-            self._show_error_state(err)
+            self._show_error_state(err, retry=True)
 
     def _show_completed_state(self):
         for widget in self.dynamic_frame.winfo_children():
@@ -328,7 +373,7 @@ class VideoToast:
         # Auto-fecha após 6 segundos de concluído
         self._start_autoclose_timer(6)
 
-    def _show_error_state(self, error_msg):
+    def _show_error_state(self, error_msg, retry=False):
         for widget in self.dynamic_frame.winfo_children():
             widget.destroy()
 
@@ -346,8 +391,23 @@ class VideoToast:
         )
         lbl.pack(fill="x", pady=(2, 6))
 
+        actions = tk.Frame(self.dynamic_frame, bg="#18181b")
+        actions.pack(fill="x")
+        if retry:
+            btn_retry = tk.Button(
+                actions,
+                text="Tentar novamente",
+                bg="#2563eb",
+                fg="#ffffff",
+                font=("Segoe UI", 8, "bold"),
+                relief="flat",
+                cursor="hand2",
+                command=lambda: self._on_click_download(self.last_media_type),
+            )
+            btn_retry.pack(side="left")
+
         btn_close = tk.Button(
-            self.dynamic_frame,
+            actions,
             text="Fechar",
             bg="#27272a",
             fg="#f4f4f5",
@@ -356,7 +416,7 @@ class VideoToast:
             cursor="hand2",
             command=self.close
         )
-        btn_close.pack(anchor="e")
+        btn_close.pack(side="right")
         self._start_autoclose_timer(8)
 
     def _open_file(self):
@@ -368,12 +428,13 @@ class VideoToast:
         self.close()
 
     def _open_folder(self):
-        target = self.result_filename if self.result_filename and os.path.exists(self.result_filename) else DEFAULT_DOWNLOAD_DIR
+        download_dir = get_download_dir()
+        target = self.result_filename if self.result_filename and os.path.exists(self.result_filename) else download_dir
         try:
             if os.path.isfile(target):
                 subprocess.Popen(f'explorer /select,"{os.path.abspath(target)}"')
             else:
-                os.startfile(str(DEFAULT_DOWNLOAD_DIR))
+                os.startfile(str(download_dir))
         except Exception:
             pass
         self.close()
@@ -434,10 +495,19 @@ class ToastManager:
                         default_quality=quality
                     )
                     self.active_toasts.append(toast)
+                    self._position_toasts()
+                    auto_download = task.get("auto_download")
+                    if auto_download in {"video", "audio"}:
+                        self.root.after_idle(
+                            lambda target=toast, media=auto_download:
+                                target._on_click_download(media)
+                        )
                 elif action == "update_progress":
                     toast = task["toast"]
                     data = task["data"]
                     toast.update_progress(data)
+                elif action == "history":
+                    self._show_history_window(task["records"], task["on_retry"])
                 elif action == "quit":
                     self.root.quit()
                     return
@@ -447,8 +517,14 @@ class ToastManager:
         if self.root:
             self.root.after(100, self._process_queue)
 
-    def show_toast(self, url, info, quality=DEFAULT_VIDEO_QUALITY):
-        self.task_queue.put({"action": "show", "url": url, "info": info, "quality": quality})
+    def show_toast(self, url, info, quality=DEFAULT_VIDEO_QUALITY, auto_download=None):
+        self.task_queue.put({
+            "action": "show",
+            "url": url,
+            "info": info,
+            "quality": quality,
+            "auto_download": auto_download,
+        })
 
     def update_progress(self, toast, data):
         self.task_queue.put({"action": "update_progress", "toast": toast, "data": data})
@@ -456,6 +532,87 @@ class ToastManager:
     def _on_toast_dismiss(self, toast):
         if toast in self.active_toasts:
             self.active_toasts.remove(toast)
+            self._position_toasts()
+
+    def _position_toasts(self):
+        for index, toast in enumerate(reversed(self.active_toasts)):
+            toast.reposition(index)
+
+    def show_history(self, records, on_retry):
+        self.task_queue.put(
+            {"action": "history", "records": records, "on_retry": on_retry}
+        )
+
+    def _show_history_window(self, records, on_retry):
+        window = tk.Toplevel(self.root)
+        window.title("SnapGrab — Histórico")
+        window.geometry("760x360")
+        window.minsize(600, 280)
+
+        columns = ("date", "title", "type", "quality", "status")
+        table = ttk.Treeview(window, columns=columns, show="headings", height=12)
+        table.heading("date", text="Data")
+        table.heading("title", text="Título / link")
+        table.heading("type", text="Tipo")
+        table.heading("quality", text="Qualidade")
+        table.heading("status", text="Status")
+        table.column("date", width=145, stretch=False)
+        table.column("title", width=330)
+        table.column("type", width=70, stretch=False)
+        table.column("quality", width=85, stretch=False)
+        table.column("status", width=90, stretch=False)
+        table.pack(fill="both", expand=True, padx=10, pady=(10, 4))
+
+        scrollbar = ttk.Scrollbar(window, orient="vertical", command=table.yview)
+        table.configure(yscrollcommand=scrollbar.set)
+        scrollbar.place(relx=1, rely=0.03, relheight=0.79, anchor="ne")
+        record_by_id = {}
+        for index, record in enumerate(records):
+            item_id = str(index)
+            record_by_id[item_id] = record
+            table.insert(
+                "", "end", iid=item_id,
+                values=(
+                    record.get("completed_at", "").replace("T", " ")[:16],
+                    record.get("title") or record.get("url", ""),
+                    "Áudio" if record.get("media_type") == "audio" else "Vídeo",
+                    record.get("quality", ""),
+                    {"completed": "Concluído", "failed": "Falhou", "cancelled": "Cancelado"}.get(
+                        record.get("status"), record.get("status", "")
+                    ),
+                ),
+            )
+
+        actions = tk.Frame(window)
+        actions.pack(fill="x", padx=10, pady=(4, 10))
+
+        def selected_record():
+            selected = table.selection()
+            return record_by_id.get(selected[0]) if selected else None
+
+        def retry_selected():
+            record = selected_record()
+            if record:
+                on_retry(record)
+                window.destroy()
+
+        def open_selected():
+            record = selected_record()
+            filename = record.get("filename") if record else None
+            if filename and os.path.isfile(filename):
+                try:
+                    if hasattr(os, "startfile"):
+                        os.startfile(filename)
+                    else:
+                        subprocess.Popen(["xdg-open", filename])
+                except OSError:
+                    pass
+
+        ttk.Button(actions, text="Abrir arquivo", command=open_selected).pack(side="left")
+        ttk.Button(actions, text="Repetir download", command=retry_selected).pack(
+            side="left", padx=(8, 0)
+        )
+        ttk.Button(actions, text="Fechar", command=window.destroy).pack(side="right")
 
     def stop(self):
         self.task_queue.put({"action": "quit"})

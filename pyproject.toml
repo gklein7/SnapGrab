@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snapgrab"
-version = "1.0.0"
+version = "1.1.0"
 description = "Zero-friction background video and audio downloader for Windows powered by yt-dlp"
 readme = "README.md"
 requires-python = ">=3.10"

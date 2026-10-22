@@ -7,7 +7,7 @@ from config import SUPPORTED_DOMAINS
 class ClipboardWatcher:
     def __init__(self, on_url_detected):
         self.on_url_detected = on_url_detected
-        self.last_url = ""
+        self.last_clipboard_text = None
         self.is_running = False
         self.is_paused = False
         self.thread = None
@@ -16,38 +16,42 @@ class ClipboardWatcher:
         if not text or not isinstance(text, str):
             return False
         text = text.strip()
-        if not (text.startswith("http://") or text.startswith("https://")):
-            return False
-
         try:
             parsed = urllib.parse.urlparse(text)
-            netloc = parsed.netloc.lower()
-            # Remove porta se houver
-            netloc = netloc.split(":")[0]
-
+            if parsed.scheme.lower() not in {"http", "https"}:
+                return False
+            hostname = (parsed.hostname or "").lower().rstrip(".")
+            if not hostname:
+                return False
             for domain in SUPPORTED_DOMAINS:
-                if domain in netloc:
+                domain = domain.lower().lstrip(".")
+                if hostname == domain or hostname.endswith("." + domain):
                     return True
         except Exception:
             return False
 
         return False
 
+    def process_clipboard_text(self, text):
+        """Processa cada mudança do clipboard, inclusive texto que não é URL."""
+        current_text = text.strip() if isinstance(text, str) else ""
+        if current_text == self.last_clipboard_text:
+            return False
+        self.last_clipboard_text = current_text
+        if not self.is_supported_url(current_text):
+            return False
+        threading.Thread(
+            target=self.on_url_detected,
+            args=(current_text,),
+            daemon=True,
+        ).start()
+        return True
+
     def _loop(self):
         while self.is_running:
             if not self.is_paused:
                 try:
-                    current_text = pyperclip.paste()
-                    if current_text:
-                        current_text = current_text.strip()
-                        if current_text != self.last_url and self.is_supported_url(current_text):
-                            self.last_url = current_text
-                            # Dispara o callback em uma thread separada para não travar o loop
-                            threading.Thread(
-                                target=self.on_url_detected,
-                                args=(current_text,),
-                                daemon=True
-                            ).start()
+                    self.process_clipboard_text(pyperclip.paste())
                 except Exception as e:
                     # Clipboard pode estar temporariamente bloqueado por outro app
                     pass
@@ -57,11 +61,9 @@ class ClipboardWatcher:
     def start(self):
         if not self.is_running:
             self.is_running = True
-            # Inicializa last_url com o que já estiver no clipboard para não disparar logo ao ligar
+            # Evita disparar um link que já estava copiado quando o app foi aberto.
             try:
-                curr = pyperclip.paste().strip()
-                if self.is_supported_url(curr):
-                    self.last_url = curr
+                self.last_clipboard_text = pyperclip.paste().strip()
             except Exception:
                 pass
 
