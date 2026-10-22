@@ -192,6 +192,12 @@ SnapGrab/
 
 ---
 
+## 👤 Créditos
+
+Criado por [@gklein7](https://github.com/gklein7).
+
+---
+
 ## 📄 Licença
 
 Distribuído sob a licença **MIT**. Consulte [`LICENSE`](LICENSE) para mais detalhes.

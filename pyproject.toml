@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snapgrab"
-version = "1.1.0"
+version = "1.1.1"
 description = "Zero-friction background video and audio downloader for Windows powered by yt-dlp"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-    { name = "SnapGrab Contributors" }
+    { name = "gklein7", url = "https://github.com/gklein7" }
 ]
 keywords = ["yt-dlp", "downloader", "video", "audio", "youtube", "instagram", "twitter", "x", "tiktok", "windows-tray"]
 classifiers = [

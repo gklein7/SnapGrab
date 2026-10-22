@@ -41,13 +41,14 @@ def create_tray_icon_image(active=True):
 class SystemTrayApp:
     def __init__(
         self, on_toggle_pause, on_download_clipboard, on_change_quality, on_quit,
-        on_open_history=None, initial_quality="best"
+        on_open_history=None, initial_quality="best", on_show_about=None
     ):
         self.on_toggle_pause = on_toggle_pause
         self.on_download_clipboard = on_download_clipboard
         self.on_change_quality = on_change_quality
         self.on_quit = on_quit
         self.on_open_history = on_open_history
+        self.on_show_about = on_show_about
         self.current_quality = initial_quality
         self.is_monitoring = True
         self.icon = None
@@ -90,6 +91,7 @@ class SystemTrayApp:
             item("📜 Histórico de Downloads", self._open_history),
             item(f"🎬 Resolução Padrão ({q_label_current})", self._get_quality_menu()),
             item("📂 Abrir Pasta de Vídeos", self._open_downloads_folder),
+            item("ℹ️ Sobre / Créditos", self._show_about),
             pystray.Menu.SEPARATOR,
             item("❌ Sair", self._quit)
         )
@@ -117,6 +119,10 @@ class SystemTrayApp:
     def _open_history(self, icon, item):
         if self.on_open_history:
             self.on_open_history()
+
+    def _show_about(self, icon, item):
+        if self.on_show_about:
+            self.on_show_about()
 
     def _quit(self, icon, item):
         self.icon.stop()
