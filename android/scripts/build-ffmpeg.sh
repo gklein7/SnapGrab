@@ -132,7 +132,7 @@ export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 cp "$FFMPEG_SOURCE/ffmpeg" "$OUTPUT_BINARY"
 "$STRIP" --strip-unneeded "$OUTPUT_BINARY"
 chmod 755 "$OUTPUT_BINARY"
-"$TOOLCHAIN/bin/llvm-readelf" -h "$OUTPUT_BINARY" | grep -q 'AArch64'
+"$TOOLCHAIN/bin/llvm-readelf" -h "$OUTPUT_BINARY" | grep 'AArch64' >/dev/null
 printf '%s\n' "$SCRIPT_HASH" > "$BUILD_MARKER"
 printf 'Built FFmpeg %s with LAME %s for arm64-v8a (Android API %s).\n' \
     "$FFMPEG_VERSION" "$LAME_VERSION" "$API_LEVEL"
