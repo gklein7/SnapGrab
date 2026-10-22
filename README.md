@@ -27,7 +27,7 @@ O **SnapGrab** roda de forma silenciosa e leve na bandeja do Windows (`System Tr
 
 <div align="center">
   <br>
-  <img src="notification.png" alt="SnapGrab Notificação" width="480">
+  <img src="preview.svg" alt="Prévia completa do novo pop-up do SnapGrab" width="640">
   <br><br>
 </div>
 
