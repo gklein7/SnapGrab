@@ -49,7 +49,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -258,7 +257,7 @@ private fun SnapGrabScreen(
                 text = "github.com/gklein7",
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .clickable(role = Role.Link) {
+                    .clickable {
                         uriHandler.openUri("https://github.com/gklein7")
                     },
                 style = MaterialTheme.typography.labelSmall,
