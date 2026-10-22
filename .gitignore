@@ -52,3 +52,8 @@ cookies.txt
 Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# Android local build output
+android/.build/
+android/.gradle/
+android/local.properties

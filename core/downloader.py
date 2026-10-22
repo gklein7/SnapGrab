@@ -22,10 +22,10 @@ def get_browser_cookie_spec(browser_name):
     return (b,)
 
 class MediaDownloader:
-    def __init__(self, output_dir=None):
+    def __init__(self, output_dir=None, ffmpeg_path=None):
         self.output_dir = Path(output_dir) if output_dir else get_download_dir()
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.ffmpeg_path = get_ffmpeg_path()
+        self.ffmpeg_path = ffmpeg_path if ffmpeg_path is not None else get_ffmpeg_path()
 
     def get_info(self, url):
         """Obtém informações rápidas do vídeo (título, autor, miniatura, duração)."""
@@ -188,7 +188,7 @@ class MediaDownloader:
 
     def download(
         self, url, media_type="video", quality="best", progress_callback=None,
-        use_cookies=False, browser_name=None, cancel_event=None
+        use_cookies=False, browser_name=None, cancel_event=None, allow_cookie_retry=True
     ):
         """
         Baixa o vídeo ou áudio do link fornecido.
@@ -199,6 +199,7 @@ class MediaDownloader:
         :param use_cookies: Se deve tentar extrair cookies do navegador
         :param browser_name: Navegador para cookies ('chrome', 'edge', etc.)
         :param cancel_event: Evento opcional para interromper um download em andamento.
+        :param allow_cookie_retry: Permite a tentativa automática de cookies do navegador.
         """
         browser_name = browser_name or get_cookie_browser()
 
@@ -311,7 +312,7 @@ class MediaDownloader:
                 return {'success': False, 'cancelled': True, 'error': 'Download cancelado.'}
 
             # Se falhou por autenticação/restrição (comum no Instagram) e não tentou cookies ainda, tenta com cookies
-            if not use_cookies and browser_name and any(k in err_msg.lower() for k in ['login', 'sign in', 'authenticate', 'rate limit', 'private']):
+            if allow_cookie_retry and not use_cookies and browser_name and any(k in err_msg.lower() for k in ['login', 'sign in', 'authenticate', 'rate limit', 'private']):
                 print(f"Tentando novamente com cookies do {browser_name}...")
                 return self.download(
                     url,
@@ -321,6 +322,7 @@ class MediaDownloader:
                     use_cookies=True,
                     browser_name=browser_name,
                     cancel_event=cancel_event,
+                    allow_cookie_retry=allow_cookie_retry,
                 )
 
             if use_cookies and any(k in err_msg.lower() for k in ['could not copy', 'database is locked', 'permission denied', 'errno 13', 'sharing violation']):

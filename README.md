@@ -2,18 +2,20 @@
 
 # ⚡ SnapGrab
 
-**O baixador de vídeos e áudios com zero fricção para Windows.**  
+**Baixador de vídeos e áudios com zero fricção para Windows e Android.**
 *Basta copiar o link (`Ctrl + C`) de qualquer rede social e baixar em 1 clique.*
 
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![yt-dlp](https://img.shields.io/badge/engine-yt--dlp-red.svg?logo=youtube&logoColor=white)](https://github.com/yt-dlp/yt-dlp)
 [![FFmpeg](https://img.shields.io/badge/converter-FFmpeg-green.svg?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg?logo=windows&logoColor=white)](https://microsoft.com/windows)
+[![Windows](https://img.shields.io/badge/platform-Windows-0078D6.svg?logo=windows&logoColor=white)](https://microsoft.com/windows)
+[![Android](https://img.shields.io/badge/platform-Android-3DDC84.svg?logo=android&logoColor=white)](https://www.android.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 [Português](#-sobre-o-projeto) • [English](#-english-overview) • [Como Usar](#-instalação-e-uso) • [Configurações](#-configurações)
 
 [⬇️ Baixar SnapGrab para Windows](https://github.com/gklein7/SnapGrab/releases/latest/download/SnapGrab-Setup.exe)
+[⬇️ Baixar SnapGrab para Android (APK)](https://github.com/gklein7/SnapGrab/releases/latest/download/SnapGrab-Android.apk)
 
 ---
 
@@ -35,7 +37,8 @@ O **SnapGrab** roda de forma silenciosa e leve na bandeja do Windows (`System Tr
 
 ## ✨ Recursos
 
-- ⚡ **Zero Fricção (Clipboard Watcher)**: Monitora links em segundo plano. Copiou `Ctrl+C`, a opção de download aparece.
+- ⚡ **Zero Fricção (Clipboard Watcher)**: No Windows, monitora links em segundo plano. Copiou `Ctrl+C`, a opção de download aparece.
+- 📱 **App Android separado**: Compartilhe ou cole um link, confira a prévia, escolha vídeo ou MP3 e salve em `Downloads/SnapGrab`.
 - 🎚️ **Controle de Resolução**: Escolha a melhor qualidade ou uma das resoluções encontradas para o link, com um toque no pop-up.
 - 🎬 **Qualidade Máxima ou Otimizada (MP4)**: Baixa e mescla automaticamente o melhor fluxo de vídeo e áudio compatível via FFmpeg.
 - 🎵 **Extrator de Áudio (MP3)**: Extrai trilhas sonoras, podcasts e músicas em MP3 de alta taxa de bits (320 kbps).
@@ -67,6 +70,12 @@ O SnapGrab suporta mais de 1.000 sites através do motor `yt-dlp`, incluindo:
 ---
 
 ## 🚀 Instalação e Uso
+
+### Android — instalação direta (APK)
+
+- Requer Android 10 (API 29) ou superior e aparelho ARM64 (`arm64-v8a`).
+- [Baixe o APK mais recente](https://github.com/gklein7/SnapGrab/releases/latest/download/SnapGrab-Android.apk), abra-o no aparelho e, se solicitado, permita a instalação para o navegador ou gerenciador de arquivos.
+- A versão Android é distribuída por GitHub Releases, fora da Play Store, e salva os arquivos em `Downloads/SnapGrab`.
 
 ### Instalação recomendada — Windows
 
@@ -110,7 +119,7 @@ Escolha a forma mais conveniente:
 
 ### Releases
 
-Ao publicar uma tag no formato `v*`, o workflow **Windows build** cria uma release com o instalador `SnapGrab-Setup.exe`. O link de download acima sempre aponta para a release mais recente.
+Ao publicar uma tag no formato `v*`, o workflow compila os instaladores Windows e Android e publica ambos na mesma GitHub Release. O APK Android é assinado e o link acima aponta para a versão mais recente.
 
 ---
 
@@ -166,6 +175,7 @@ SnapGrab/
 ├── config.py                  # Parâmetros e opções do usuário
 ├── main.py                    # Orquestrador central
 ├── installer/SnapGrab.iss     # Instalador do Windows
+├── android/                    # App Android (Kotlin/Compose + motor Python compartilhado)
 ├── tests/                     # Testes unitários
 ├── iniciar.bat                # Inicializador com terminal
 ├── iniciar_silencioso.vbs      # Inicializador invisível para segundo plano
@@ -179,9 +189,13 @@ SnapGrab/
 
 ## 🇺🇸 English Overview
 
-**SnapGrab** is a lightweight, zero-friction video and audio downloader for Windows powered by `yt-dlp` and `FFmpeg`.
+**SnapGrab** is a lightweight, zero-friction video and audio downloader powered by `yt-dlp` and `FFmpeg`, with the original Windows app and a separate Android app.
 
 [⬇️ Download the latest Windows installer](https://github.com/gklein7/SnapGrab/releases/latest/download/SnapGrab-Setup.exe). Python is not required to use the installer.
+
+### Android APK
+
+Requires Android 10 (API 29) or newer on an ARM64 (`arm64-v8a`) device. [Download the latest signed APK](https://github.com/gklein7/SnapGrab/releases/latest/download/SnapGrab-Android.apk), open it on your phone, and allow installation from the browser or file manager if prompted. The Android app is distributed through GitHub Releases, outside Google Play, and saves downloads under `Downloads/SnapGrab`.
 
 - **Automatic Clipboard Detection**: Whenever you copy (`Ctrl + C`) a video link from YouTube, Instagram, X (Twitter), TikTok, or Reddit, a non-intrusive floating toast pops up in the bottom-right corner.
 - **1-Click Download & Quality Control**: Choose the best available video quality or another resolution found for the link, or download 320kbps MP3 audio.
@@ -189,6 +203,7 @@ SnapGrab/
 - **Managed downloads**: A bounded queue supports cancellation, retries, and a local SQLite history.
 - **Tray Resident & Quality Presets**: Lives silently in your Windows System Tray and lets you set your default resolution preset with a single click.
 - **Embedded FFmpeg Support**: Automatically resolves static FFmpeg builds to merge streams seamlessly without manual setup.
+- **Separate Android app**: Share or paste a link, preview the media, choose video or MP3, and save to `Downloads/SnapGrab`.
 
 ---
 

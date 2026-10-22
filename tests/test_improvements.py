@@ -79,6 +79,33 @@ class DownloaderPathTests(unittest.TestCase):
             self.assertTrue(result["cancelled"])
             self.assertIn("cancelled", statuses)
 
+    def test_uses_injected_ffmpeg_path_without_calling_desktop_resolver(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch("core.downloader.get_ffmpeg_path") as resolver:
+                downloader = MediaDownloader(output_dir=temp_dir, ffmpeg_path="/native/libffmpeg.so")
+
+        self.assertEqual(downloader.ffmpeg_path, "/native/libffmpeg.so")
+        resolver.assert_not_called()
+
+    def test_can_disable_browser_cookie_retry_for_android(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloader = MediaDownloader(output_dir=temp_dir, ffmpeg_path="/native/libffmpeg.so")
+            fake_ydl = MagicMock()
+            fake_ydl.__enter__.return_value.extract_info.side_effect = Exception("Sign in required")
+            with (
+                patch("core.downloader.yt_dlp.YoutubeDL", return_value=fake_ydl) as youtube_dl,
+                patch("core.downloader.get_browser_cookie_spec") as cookie_spec,
+            ):
+                result = downloader.download(
+                    "https://youtube.com/watch?v=test",
+                    browser_name="chrome",
+                    allow_cookie_retry=False,
+                )
+
+        self.assertFalse(result["success"])
+        youtube_dl.assert_called_once()
+        cookie_spec.assert_not_called()
+
 
 class ToastLayoutTests(unittest.TestCase):
     def test_quality_buttons_use_the_frame_managed_by_grid(self):
