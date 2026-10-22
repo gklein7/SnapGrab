@@ -23,19 +23,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
 
 class DownloadWorker(
     context: Context,
     parameters: WorkerParameters,
 ) : CoroutineWorker(context, parameters) {
-    private val cancelRequested = AtomicBoolean(false)
     private val notificationId = id.hashCode().and(Int.MAX_VALUE).coerceAtLeast(1)
-
-    override fun onStopped() {
-        cancelRequested.set(true)
-        super.onStopped()
-    }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val url = inputData.getString(KEY_URL)
@@ -60,7 +53,7 @@ class DownloadWorker(
             check(ffmpegPath.isFile) { "O FFmpeg não está disponível neste aparelho." }
 
             val callbacks = object : DownloadCallbacks {
-                override fun isCancelled(): Boolean = cancelRequested.get() || isStopped
+                override fun isCancelled(): Boolean = isStopped
 
                 override fun onProgress(percent: Int, status: String, speed: String, eta: String) {
                     val details = when (status) {
@@ -94,7 +87,7 @@ class DownloadWorker(
             ).toJava(String::class.java)
             val result = JSONObject(response)
 
-            if (cancelRequested.get() || isStopped || result.optBoolean("cancelled")) {
+            if (isStopped || result.optBoolean("cancelled")) {
                 return@withContext failure("Download cancelado.")
             }
             if (!result.optBoolean("success")) {
@@ -111,7 +104,6 @@ class DownloadWorker(
             val publishedUri = publishToDownloads(output, mediaType)
             Result.success(workDataOf(KEY_URI to publishedUri.toString(), KEY_NAME to output.name))
         } catch (cancelled: CancellationException) {
-            cancelRequested.set(true)
             throw cancelled
         } catch (error: Exception) {
             failure(error.message ?: "Ocorreu um erro durante o download.")
