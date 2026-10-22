@@ -4,10 +4,15 @@ import time
 import queue
 import threading
 import subprocess
+from io import BytesIO
 import tkinter as tk
 from tkinter import ttk
 import urllib.parse
-from config import DEFAULT_VIDEO_QUALITY, AVAILABLE_QUALITIES, get_download_dir, get_toast_timeout
+from urllib.request import Request, urlopen
+from PIL import Image, ImageOps, ImageTk
+from config import DEFAULT_VIDEO_QUALITY, get_download_dir, get_toast_timeout
+
+THUMBNAIL_MAX_BYTES = 3 * 1024 * 1024
 
 def detect_platform(url):
     """Retorna badge e cor da plataforma com base na URL."""
@@ -26,19 +31,30 @@ def detect_platform(url):
         return "🌐 Vídeo Web", "#3b82f6" # Azul
 
 class VideoToast:
-    def __init__(self, root, url, info, on_download_request, on_dismiss, default_quality=DEFAULT_VIDEO_QUALITY):
+    def __init__(
+        self, root, url, info, on_download_request, on_dismiss,
+        default_quality=DEFAULT_VIDEO_QUALITY, on_thumbnail_loaded=None
+    ):
         self.root = root
         self.url = url
         self.info = info or {}
         self.on_download_request = on_download_request
         self.on_dismiss = on_dismiss
-        self.selected_quality = default_quality if default_quality in AVAILABLE_QUALITIES else "best"
+        self.selected_quality = "best"
         self.is_downloading = False
         self.last_media_type = "video"
         self.cancel_action = None
         self.cancel_btn = None
         self.timer_id = None
         self.result_filename = None
+        self.on_thumbnail_loaded = on_thumbnail_loaded
+        self.thumbnail_photo = None
+        self.quality_options = self._get_quality_options()
+        available_values = {option['value'] for option in self.quality_options}
+        if default_quality in available_values:
+            self.selected_quality = default_quality
+        else:
+            self.selected_quality = 'best'
 
         # Cria janela Toplevel
         self.win = tk.Toplevel(self.root)
@@ -47,12 +63,19 @@ class VideoToast:
         self.win.configure(bg="#18181b") # Zinc dark
 
         # Dimensões e posicionamento (canto inferior direito)
-        self.width = 410
-        self.height = 220
+        self.width = 500
+        self.height = 340
         self.reposition(0)
 
         self._build_ui()
+        self._load_thumbnail_async()
         self._start_autoclose_timer(get_toast_timeout())
+
+    def _get_quality_options(self):
+        options = self.info.get('quality_options')
+        if isinstance(options, list) and options:
+            return options
+        return [{'value': 'best', 'label': 'Máx.'}]
 
     def reposition(self, index):
         if not self.win.winfo_exists():
@@ -101,22 +124,95 @@ class VideoToast:
         close_btn.bind("<Enter>", lambda e: close_btn.config(fg="#ffffff"))
         close_btn.bind("<Leave>", lambda e: close_btn.config(fg="#71717a"))
 
-        # Título do vídeo
-        title_text = self.info.get("title") or self.url
-        if len(title_text) > 85:
-            title_text = title_text[:82] + "..."
+        preview_row = tk.Frame(container, bg="#18181b")
+        preview_row.pack(fill="x", pady=(2, 8))
 
+        self.thumbnail_lbl = tk.Label(
+            preview_row,
+            text="PRÉVIA",
+            bg="#27272a",
+            fg="#71717a",
+            font=("Segoe UI", 8, "bold"),
+            width=20,
+            height=5,
+            relief="flat",
+        )
+        self.thumbnail_lbl.pack(side="left", padx=(0, 12))
+
+        text_panel = tk.Frame(preview_row, bg="#18181b")
+        text_panel.pack(side="left", fill="both", expand=True)
+
+        title_text = self.info.get("title") or self.url
+        if len(title_text) > 110:
+            title_text = title_text[:107] + "..."
         self.title_lbl = tk.Label(
-            container,
+            text_panel,
             text=title_text,
             bg="#18181b",
             fg="#f4f4f5",
             font=("Segoe UI", 10, "bold"),
+            anchor="nw",
+            justify="left",
+            wraplength=300,
+        )
+        self.title_lbl.pack(fill="x", anchor="nw")
+
+        channel = self.info.get("uploader") or self.info.get("channel") or "Canal não informado"
+        if len(channel) > 52:
+            channel = channel[:49] + "..."
+        self.channel_lbl = tk.Label(
+            text_panel,
+            text=f"Por {channel}",
+            bg="#18181b",
+            fg="#a1a1aa",
+            font=("Segoe UI", 8),
+            anchor="w",
+        )
+        self.channel_lbl.pack(fill="x", pady=(6, 0))
+
+        metadata_row = tk.Frame(container, bg="#18181b")
+        metadata_row.pack(fill="x", pady=(0, 7))
+
+        duration = self._format_duration(self.info.get("duration"))
+        self.duration_lbl = tk.Label(
+            metadata_row,
+            text=f"◷  {duration}" if duration else "◷  Duração indisponível",
+            bg="#18181b",
+            fg="#d4d4d8",
+            font=("Segoe UI", 8),
+            anchor="w",
+        )
+        self.duration_lbl.pack(side="left")
+
+        self.estimated_size_lbl = tk.Label(
+            metadata_row,
+            text="",
+            bg="#18181b",
+            fg="#d4d4d8",
+            font=("Segoe UI", 8),
+            anchor="e",
+        )
+        self.estimated_size_lbl.pack(side="right")
+        self._update_estimated_size()
+
+        resolutions = self.info.get("available_resolutions") or []
+        if resolutions:
+            resolution_text = "Disponíveis: " + "  ·  ".join(
+                f"{height}p" for height in resolutions
+            )
+        else:
+            resolution_text = "Resoluções: não informadas pelo site"
+        self.resolutions_lbl = tk.Label(
+            container,
+            text=resolution_text,
+            bg="#18181b",
+            fg="#71717a",
+            font=("Segoe UI", 8),
             anchor="w",
             justify="left",
-            wraplength=380
+            wraplength=460,
         )
-        self.title_lbl.pack(fill="x", pady=(0, 8))
+        self.resolutions_lbl.pack(fill="x", pady=(0, 4))
 
         # Painel dinâmico (Botões ou Progresso)
         self.dynamic_frame = tk.Frame(container, bg="#18181b")
@@ -124,8 +220,91 @@ class VideoToast:
 
         self._show_action_buttons()
 
+    @staticmethod
+    def _format_duration(value):
+        try:
+            total_seconds = max(0, int(float(value or 0)))
+        except (TypeError, ValueError):
+            return ""
+        if not total_seconds:
+            return ""
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes}:{seconds:02d}"
+
+    @staticmethod
+    def _format_size(value):
+        try:
+            size = int(value or 0)
+        except (TypeError, ValueError):
+            size = 0
+        if size <= 0:
+            return "indisponível"
+        units = ("B", "KB", "MB", "GB", "TB")
+        size_value = float(size)
+        for unit in units:
+            if size_value < 1024 or unit == units[-1]:
+                return f"~{size_value:.1f} {unit}"
+            size_value /= 1024
+
+    def _update_estimated_size(self, media_type="video"):
+        if media_type == "audio":
+            estimate = self.info.get("audio_size_estimate")
+            label = f"MP3 · {self._format_size(estimate)}"
+        else:
+            estimates = self.info.get("size_estimates") or {}
+            estimate = estimates.get(self.selected_quality, estimates.get("best"))
+            label = f"Vídeo · {self._format_size(estimate)}"
+        self.estimated_size_lbl.config(text=label)
+
+    def _load_thumbnail_async(self):
+        thumbnail_url = self.info.get("thumbnail")
+        if not isinstance(thumbnail_url, str) or not thumbnail_url or not self.on_thumbnail_loaded:
+            return
+        if urllib.parse.urlparse(thumbnail_url).scheme.lower() != "https":
+            return
+
+        def fetch():
+            try:
+                request = Request(
+                    thumbnail_url,
+                    headers={"User-Agent": "SnapGrab/1.1 (thumbnail preview)"},
+                )
+                with urlopen(request, timeout=5) as response:
+                    data = response.read(THUMBNAIL_MAX_BYTES + 1)
+                if len(data) > THUMBNAIL_MAX_BYTES:
+                    return
+                with Image.open(BytesIO(data)) as image:
+                    if image.width * image.height > 40_000_000:
+                        return
+                    image.verify()
+                self.on_thumbnail_loaded(self, data)
+            except Exception:
+                # A falha da miniatura não deve impedir o download nem a prévia textual.
+                return
+
+        threading.Thread(target=fetch, daemon=True, name="snapgrab-thumbnail").start()
+
+    def set_thumbnail(self, data):
+        if not self.win.winfo_exists():
+            return
+        try:
+            with Image.open(BytesIO(data)) as image:
+                image = ImageOps.fit(
+                    image.convert("RGB"),
+                    (156, 88),
+                    method=Image.Resampling.LANCZOS,
+                )
+            self.thumbnail_photo = ImageTk.PhotoImage(image, master=self.win)
+            self.thumbnail_lbl.config(image=self.thumbnail_photo, text="")
+        except Exception:
+            pass
+
     def _set_quality(self, q):
         self.selected_quality = q
+        self._update_estimated_size()
         self._start_autoclose_timer(get_toast_timeout())
         self._show_action_buttons()
 
@@ -134,27 +313,25 @@ class VideoToast:
         for widget in self.dynamic_frame.winfo_children():
             widget.destroy()
 
-        # Linha de Seleção de Qualidade
+        # Linha de Seleção de Qualidade, limitada às resoluções reais encontradas.
         quality_frame = tk.Frame(self.dynamic_frame, bg="#18181b")
-        quality_frame.pack(fill="x", pady=(0, 8))
+        quality_frame.pack(fill="x", pady=(0, 6))
 
         q_lbl = tk.Label(
             quality_frame,
-            text="Resolução:",
+            text="Qualidade:",
             bg="#18181b",
             fg="#a1a1aa",
             font=("Segoe UI", 8)
         )
-        q_lbl.pack(side="left", padx=(0, 6))
+        q_lbl.pack(anchor="w", pady=(0, 3))
 
-        quality_options = [
-            ("best", "Máx (4K)"),
-            ("1080p", "1080p"),
-            ("720p", "720p"),
-            ("480p", "480p")
-        ]
+        options_frame = tk.Frame(quality_frame, bg="#18181b")
+        options_frame.pack(fill="x")
 
-        for q, label in quality_options:
+        for index, option in enumerate(self.quality_options):
+            q = option["value"]
+            label = option["label"]
             is_sel = (q == self.selected_quality)
             bg_col = "#2563eb" if is_sel else "#27272a"
             fg_col = "#ffffff" if is_sel else "#a1a1aa"
@@ -169,19 +346,24 @@ class VideoToast:
                 font=("Segoe UI", 8, "bold" if is_sel else "normal"),
                 relief="flat",
                 cursor="hand2",
-                padx=6,
+                width=11,
+                padx=4,
                 pady=1,
                 command=lambda target_q=q: self._set_quality(target_q)
             )
-            btn_q.pack(side="left", padx=2)
+            btn_q.grid(row=index // 5, column=index % 5, sticky="w", padx=2, pady=2)
 
         # Linha de Ação Principal
         btn_row = tk.Frame(self.dynamic_frame, bg="#18181b")
         btn_row.pack(fill="x")
 
         # Rótulo do botão com a qualidade atual embutida
-        q_tag = "Máx" if self.selected_quality == "best" else self.selected_quality
-        video_btn_text = f"🎬 Vídeo ({q_tag})"
+        selected_option = next(
+            (option for option in self.quality_options if option["value"] == self.selected_quality),
+            {"label": "Máx."},
+        )
+        q_tag = selected_option["label"]
+        video_btn_text = f"🎬 Vídeo · {q_tag}"
 
         # Botão Vídeo MP4
         btn_video = tk.Button(
@@ -221,6 +403,7 @@ class VideoToast:
         self._cancel_autoclose_timer()
         self.is_downloading = True
         self.last_media_type = media_type
+        self._update_estimated_size(media_type)
 
         for widget in self.dynamic_frame.winfo_children():
             widget.destroy()
@@ -492,7 +675,12 @@ class ToastManager:
                         info,
                         self.on_download_handler,
                         self._on_toast_dismiss,
-                        default_quality=quality
+                        default_quality=quality,
+                        on_thumbnail_loaded=lambda target, data: self.task_queue.put({
+                            "action": "thumbnail",
+                            "toast": target,
+                            "data": data,
+                        }),
                     )
                     self.active_toasts.append(toast)
                     self._position_toasts()
@@ -506,6 +694,10 @@ class ToastManager:
                     toast = task["toast"]
                     data = task["data"]
                     toast.update_progress(data)
+                elif action == "thumbnail":
+                    toast = task["toast"]
+                    if toast in self.active_toasts:
+                        toast.set_thumbnail(task["data"])
                 elif action == "history":
                     self._show_history_window(task["records"], task["on_retry"])
                 elif action == "quit":
