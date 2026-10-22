@@ -1,6 +1,7 @@
 """Persistência local do histórico de downloads (SQLite)."""
 
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -14,10 +15,18 @@ class DownloadHistory:
         self.limit = max(1, int(limit))
         self._initialize()
 
+    @contextmanager
     def _connect(self):
         connection = sqlite3.connect(self.database_path, timeout=10)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
     def _initialize(self):
         with self._connect() as connection:
