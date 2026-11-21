@@ -360,5 +360,121 @@ class SystemTrayTests(unittest.TestCase):
         fake_icon.run_detached.assert_called_once()
 
 
+class MediaCompatibilityTests(unittest.TestCase):
+    def test_has_faststart_identifies_atom_order(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            faststart_file = Path(temp_dir) / "faststart.mp4"
+            faststart_file.write_bytes(b"\x00\x00\x00\x20ftypmp42\x00\x00\x00\x10moovheader\x00\x00\x00\x10mdatbody")
+            self.assertTrue(MediaDownloader._has_faststart(faststart_file))
+
+            slowstart_file = Path(temp_dir) / "slowstart.mp4"
+            slowstart_file.write_bytes(b"\x00\x00\x00\x20ftypmp42\x00\x00\x00\x10mdatbody\x00\x00\x00\x10moovheader")
+            self.assertFalse(MediaDownloader._has_faststart(slowstart_file))
+
+    def test_preview_details_normalizes_vertical_resolutions(self):
+        preview = MediaDownloader._build_preview_details(
+            {
+                "duration": 60,
+                "formats": [
+                    {"width": 1080, "height": 1920, "vcodec": "avc1", "acodec": "none", "filesize": 10_000_000},
+                    {"width": 720, "height": 1280, "vcodec": "avc1", "acodec": "none", "filesize": 5_000_000},
+                    {"vcodec": "none", "acodec": "mp4a", "filesize": 1_000_000},
+                ],
+            }
+        )
+        self.assertEqual(preview["available_resolutions"], [1080, 720])
+        self.assertEqual(preview["quality_options"][0]["value"], "best")
+        self.assertIn("1080p", preview["quality_options"][0]["label"])
+        self.assertEqual(preview["quality_options"][1]["value"], "720p")
+
+    def test_download_configures_h264_aac_format_sort_and_faststart(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            downloader = MediaDownloader(output_dir=temp_dir, ffmpeg_path="ffmpeg")
+            captured_opts = {}
+
+            def fake_ydl_init(opts):
+                captured_opts.update(opts)
+                mock = MagicMock()
+                mock.__enter__.return_value = mock
+                mock.extract_info.return_value = {
+                    "id": "123",
+                    "title": "Title",
+                    "filepath": str(Path(temp_dir) / "Title [123].mp4"),
+                }
+                return mock
+
+            with (
+                patch("core.downloader.yt_dlp.YoutubeDL", side_effect=fake_ydl_init),
+                patch.object(downloader, "_ensure_compatibility", side_effect=lambda path, **k: path) as compat_mock,
+            ):
+                (Path(temp_dir) / "Title [123].mp4").touch()
+                result = downloader.download("https://example.com/video", media_type="video", quality="1080p")
+
+            self.assertTrue(result["success"])
+            self.assertEqual(captured_opts.get("format"), "bestvideo+bestaudio/best")
+            self.assertEqual(
+                captured_opts.get("format_sort"),
+                ["res:1080", "vcodec:h264", "acodec:aac"],
+            )
+            self.assertEqual(captured_opts.get("merge_output_format"), "mp4")
+            self.assertEqual(
+                captured_opts.get("postprocessor_args", {}).get("Merger"),
+                ["-movflags", "+faststart"],
+            )
+            compat_mock.assert_called_once()
+
+    def test_ensure_compatibility_skips_when_already_compliant(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "video.mp4"
+            file_path.touch()
+            downloader = MediaDownloader(output_dir=temp_dir, ffmpeg_path="ffmpeg")
+            with (
+                patch.object(
+                    downloader,
+                    "_inspect_media_codecs",
+                    return_value={"video_codec": "h264", "pix_fmt": "yuv420p", "audio_codec": "aac"},
+                ),
+                patch.object(downloader, "_has_faststart", return_value=True),
+                patch("core.downloader.subprocess.Popen") as popen_mock,
+            ):
+                res = downloader._ensure_compatibility(str(file_path))
+
+            self.assertEqual(res, str(file_path))
+            popen_mock.assert_not_called()
+
+    def test_ensure_compatibility_transcodes_vp9_to_h264(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "video.mp4"
+            file_path.touch()
+            temp_compat = Path(temp_dir) / "video.compat.mp4"
+
+            def fake_popen(cmd, **kwargs):
+                temp_compat.write_bytes(b"h264_converted_bytes")
+                proc = MagicMock()
+                proc.poll.return_value = 0
+                proc.returncode = 0
+                return proc
+
+            downloader = MediaDownloader(output_dir=temp_dir, ffmpeg_path="ffmpeg")
+            with (
+                patch.object(
+                    downloader,
+                    "_inspect_media_codecs",
+                    return_value={"video_codec": "vp9", "pix_fmt": "yuv420p", "audio_codec": "aac"},
+                ),
+                patch.object(downloader, "_has_faststart", return_value=True),
+                patch("core.downloader.subprocess.Popen", side_effect=fake_popen) as popen_mock,
+            ):
+                res = downloader._ensure_compatibility(str(file_path))
+
+            self.assertEqual(res, str(file_path))
+            popen_mock.assert_called_once()
+            cmd_executed = popen_mock.call_args[0][0]
+            self.assertIn("libx264", cmd_executed)
+            self.assertIn("yuv420p", cmd_executed)
+            self.assertIn("+faststart", cmd_executed)
+            self.assertEqual(file_path.read_bytes(), b"h264_converted_bytes")
+
+
 if __name__ == "__main__":
     unittest.main()

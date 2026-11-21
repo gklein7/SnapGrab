@@ -1,8 +1,12 @@
+import json
 import os
 from pathlib import Path
+import shutil
+import subprocess
+import time
 import yt_dlp
 from config import get_cookie_browser, get_download_dir
-from core.ffmpeg_resolver import get_ffmpeg_path
+from core.ffmpeg_resolver import get_ffmpeg_path, get_ffprobe_path
 
 def get_browser_cookie_spec(browser_name):
     """
@@ -22,10 +26,11 @@ def get_browser_cookie_spec(browser_name):
     return (b,)
 
 class MediaDownloader:
-    def __init__(self, output_dir=None, ffmpeg_path=None):
+    def __init__(self, output_dir=None, ffmpeg_path=None, ffprobe_path=None):
         self.output_dir = Path(output_dir) if output_dir else get_download_dir()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.ffmpeg_path = ffmpeg_path if ffmpeg_path is not None else get_ffmpeg_path()
+        self.ffprobe_path = ffprobe_path if ffprobe_path is not None else get_ffprobe_path()
 
     def get_info(self, url):
         """Obtém informações rápidas do vídeo (título, autor, miniatura, duração)."""
@@ -100,9 +105,11 @@ class MediaDownloader:
             if has_video:
                 try:
                     height = int(format_info.get('height') or 0)
+                    width = int(format_info.get('width') or 0)
                 except (TypeError, ValueError):
                     continue
-                if height <= 0 or (max_height and height > max_height):
+                dim = min(height, width) if (height > 0 and width > 0) else height
+                if dim <= 0 or (max_height and dim > max_height):
                     continue
                 if has_audio:
                     combined_formats.append(format_info)
@@ -114,12 +121,14 @@ class MediaDownloader:
         def rank(format_info):
             try:
                 height = int(format_info.get('height') or 0)
+                width = int(format_info.get('width') or 0)
+                dim = min(height, width) if (height > 0 and width > 0) else height
                 bitrate = float(format_info.get('tbr') or format_info.get('abr') or 0)
             except (TypeError, ValueError):
-                height = 0
+                dim = 0
                 bitrate = 0
             return (
-                height,
+                dim,
                 bitrate,
                 cls._format_size_estimate(format_info, duration),
             )
@@ -149,10 +158,12 @@ class MediaDownloader:
                 continue
             try:
                 height = int(format_info.get('height') or 0)
+                width = int(format_info.get('width') or 0)
             except (TypeError, ValueError):
                 continue
-            if height > 0:
-                heights.add(height)
+            dim = min(height, width) if (height > 0 and width > 0) else height
+            if dim > 0:
+                heights.add(dim)
 
         available_heights = sorted(heights, reverse=True)
         max_height = available_heights[0] if available_heights else None
@@ -271,14 +282,19 @@ class MediaDownloader:
             })
         else: # video
             if not quality or quality == 'best':
-                fmt = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best'
+                sort_opts = ['vcodec:h264', 'res', 'acodec:aac']
             else:
                 h = quality.lower().replace('p', '')
-                fmt = f'bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={h}]+bestaudio/best[height<={h}]/best'
+                sort_opts = [f'res:{h}', 'vcodec:h264', 'acodec:aac']
 
             ydl_opts.update({
-                'format': fmt,
-                'merge_output_format': 'mp4'
+                'format': 'bestvideo+bestaudio/best',
+                'format_sort': sort_opts,
+                'merge_output_format': 'mp4',
+                'postprocessor_args': {
+                    'Merger': ['-movflags', '+faststart'],
+                    'VideoRemuxer': ['-movflags', '+faststart'],
+                },
             })
 
         try:
@@ -286,6 +302,14 @@ class MediaDownloader:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 target_filename = self._resolve_output_path(ydl, info, media_type)
+
+                if media_type == 'video' and target_filename and os.path.isfile(target_filename):
+                    target_filename = self._ensure_compatibility(
+                        target_filename,
+                        progress_callback=progress_callback,
+                        cancel_event=cancel_event,
+                    )
+                check_cancelled()
 
                 if progress_callback:
                     progress_callback({
@@ -377,6 +401,194 @@ class MediaDownloader:
 
         # Não inventa uma extensão quando o extractor não informa o arquivo final.
         return str(candidates[0]) if candidates else str(self.output_dir)
+
+    def _inspect_media_codecs(self, filepath):
+        """
+        Inspeciona codecs de vídeo, áudio e formato de pixel de um arquivo de mídia.
+        Retorna dict com 'video_codec', 'pix_fmt', 'audio_codec'.
+        """
+        probe = self.ffprobe_path or shutil.which("ffprobe")
+        if probe:
+            cmd = [
+                probe,
+                "-v", "error",
+                "-show_entries", "stream=index,codec_name,codec_type,pix_fmt",
+                "-of", "json",
+                str(filepath),
+            ]
+            try:
+                res = subprocess.run(
+                    cmd, capture_output=True, text=True, encoding="utf-8", errors="replace"
+                )
+                if res.returncode == 0:
+                    data = json.loads(res.stdout)
+                    streams = data.get("streams", [])
+                    v_stream = next((s for s in streams if s.get("codec_type") == "video"), {})
+                    a_stream = next((s for s in streams if s.get("codec_type") == "audio"), {})
+                    return {
+                        "video_codec": (v_stream.get("codec_name") or "").lower(),
+                        "pix_fmt": (v_stream.get("pix_fmt") or "").lower(),
+                        "audio_codec": (a_stream.get("codec_name") or "").lower(),
+                    }
+            except Exception:
+                pass
+
+        ffmpeg = self.ffmpeg_path or shutil.which("ffmpeg") or "ffmpeg"
+        try:
+            res = subprocess.run(
+                [ffmpeg, "-i", str(filepath)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            v_codec, pix_fmt, a_codec = "", "", ""
+            for line in res.stderr.splitlines():
+                line_str = line.strip()
+                if "Stream #" in line_str:
+                    if "Video:" in line_str:
+                        parts = line_str.split("Video:")[1].split(",")
+                        if parts:
+                            v_codec = parts[0].strip().split()[0].lower()
+                        if len(parts) > 1:
+                            pix_fmt = parts[1].strip().split()[0].lower()
+                    elif "Audio:" in line_str:
+                        parts = line_str.split("Audio:")[1].split(",")
+                        if parts:
+                            a_codec = parts[0].strip().split()[0].lower()
+            return {
+                "video_codec": v_codec,
+                "pix_fmt": pix_fmt,
+                "audio_codec": a_codec,
+            }
+        except Exception:
+            return {"video_codec": "", "pix_fmt": "", "audio_codec": ""}
+
+    @staticmethod
+    def _has_faststart(filepath):
+        """Verifica se o átomo 'moov' precede o 'mdat' no cabeçalho do MP4."""
+        try:
+            with open(filepath, "rb") as f:
+                header = f.read(1024 * 1024)
+                moov = header.find(b"moov")
+                mdat = header.find(b"mdat")
+                return moov != -1 and (mdat == -1 or moov < mdat)
+        except Exception:
+            return False
+
+    def _ensure_compatibility(self, filepath, progress_callback=None, cancel_event=None):
+        """
+        Garante que o vídeo gerado seja 100% compatível com WhatsApp, web e dispositivos móveis:
+        - Vídeo: H.264 (AVC)
+        - Áudio: AAC
+        - Pixel format: yuv420p
+        - Contêiner: MP4 com faststart (moov no início)
+        """
+        path = Path(filepath)
+        if not path.is_file() or path.suffix.lower() != ".mp4":
+            return str(filepath)
+
+        ffmpeg = self.ffmpeg_path or shutil.which("ffmpeg")
+        if not ffmpeg:
+            return str(filepath)
+
+        codecs = self._inspect_media_codecs(path)
+        v_codec = codecs.get("video_codec", "")
+        pix_fmt = codecs.get("pix_fmt", "")
+        a_codec = codecs.get("audio_codec", "")
+        faststart = self._has_faststart(path)
+
+        needs_v_transcode = v_codec not in ("h264", "avc1") or pix_fmt not in ("yuv420p", "yuvj420p", "")
+        needs_a_transcode = bool(a_codec) and a_codec not in ("aac", "mp3")
+        needs_faststart = not faststart
+
+        if not needs_v_transcode and not needs_a_transcode and not needs_faststart:
+            return str(filepath)
+
+        temp_target = path.with_suffix(".compat.mp4")
+
+        cmd = [ffmpeg, "-y", "-i", str(path)]
+        if needs_v_transcode:
+            cmd.extend([
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-crf", "20",
+                "-pix_fmt", "yuv420p",
+            ])
+        else:
+            cmd.extend(["-c:v", "copy"])
+
+        if needs_a_transcode:
+            cmd.extend(["-c:a", "aac", "-b:a", "192k"])
+        elif a_codec:
+            cmd.extend(["-c:a", "copy"])
+
+        cmd.extend(["-movflags", "+faststart", str(temp_target)])
+
+        if progress_callback:
+            label = "Otimizando para WhatsApp (H.264)..." if needs_v_transcode else "Aplicando faststart..."
+            progress_callback({
+                "status": "processing",
+                "percent": 100,
+                "speed_str": label,
+                "eta_str": "FFmpeg",
+                "filename": str(path),
+            })
+
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            while proc.poll() is None:
+                if cancel_event is not None and cancel_event.is_set():
+                    proc.kill()
+                    if temp_target.exists():
+                        temp_target.unlink(missing_ok=True)
+                    raise yt_dlp.utils.DownloadCancelled("Download cancelado pelo usuário.")
+                time.sleep(0.2)
+
+            proc.wait()
+
+            if proc.returncode == 0 and temp_target.is_file() and temp_target.stat().st_size > 0:
+                replaced = False
+                for _ in range(5):
+                    try:
+                        os.replace(temp_target, path)
+                        replaced = True
+                        break
+                    except (PermissionError, OSError):
+                        time.sleep(0.2)
+
+                if not replaced:
+                    try:
+                        shutil.copyfile(temp_target, path)
+                        temp_target.unlink(missing_ok=True)
+                        replaced = True
+                    except Exception:
+                        pass
+
+                if replaced:
+                    return str(path)
+                return str(filepath)
+            else:
+                try:
+                    if temp_target.exists():
+                        temp_target.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                return str(filepath)
+        except yt_dlp.utils.DownloadCancelled:
+            raise
+        except Exception:
+            try:
+                if temp_target.exists():
+                    temp_target.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return str(filepath)
 
     def _explain_error(self, error):
         """Acrescenta uma indicação prática aos erros mais comuns do yt-dlp."""
